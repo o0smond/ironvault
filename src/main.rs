@@ -2,8 +2,11 @@ use std::{fs, io::{self, Write}};
 use serde::{Serialize, Deserialize};
 use serde_json;
 use rand::Rng;
+use rand::RngCore;
 use base64::{engine::general_purpose, Engine as _};
 use argon2::{Argon2, password_hash::{SaltString}, Params, PasswordHasher};
+use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
+use chacha20poly1305::aead::{Aead, NewAead};
 use rand_core::OsRng;
 
 /*
@@ -67,9 +70,70 @@ fn main() {
     }
     println!("Generating key...");
     key = get_key(mpass, salt);
-    println!("\nYour key is: {}", general_purpose::STANDARD.encode(&key));
+    println!("Your key is: {}", general_purpose::STANDARD.encode(&key));
 
-}   
+    let mut plaintext = String::new();
+
+    if let Some(existing_password_data) = data.passwords.as_object() {
+        println!("Passwords found!");
+        let nonce = generate_nonce();
+        let cipher_nonce = Nonce::from_slice(&nonce);
+        let cipher_key = Key::from_slice(&key);
+        let cipher = ChaCha20Poly1305::new(cipher_key);
+        let ciphertext = existing_password_data["ciphertext"].as_str().unwrap();
+        let ciphertext_b64 = existing_password_data["ciphertext"].as_str().expect("ciphertext missing");
+        // Decode base64 → Vec<u8>
+        let ciphertext_bytes = base64::decode(ciphertext_b64)
+        .expect("Failed to decode base64 ciphertext");
+
+        // Decrypt
+        let plaintext_bytes = cipher
+        .decrypt(cipher_nonce, ciphertext_bytes.as_ref())
+        .expect("Decryption failed");
+
+        // Convert bytes → string
+        plaintext = String::from_utf8(plaintext_bytes)
+        .expect("Decrypted plaintext is not valid UTF-8");
+
+        println!("Decrypted passwords JSON:\n{}", plaintext);
+
+    } else {
+        println!("No previous passwords found.");
+        plaintext = serde_json::json!({"test": "test"}).to_string();
+    }
+    
+    let password_map: serde_json::Value = serde_json::from_str(&plaintext).expect("Invalid JSON");
+    let mut choice = choice_selector();
+    let mut to_be_added = String::new();
+
+    if (choice == "1") {
+        println!("\n{}", password_map);
+    } else if (choice == "2") {
+        {}
+    } else if (choice == "3") {
+        {}
+    } else if (choice == "4") {
+        println!("Goodbye!");
+        std::process::exit(0);
+    }
+}  
+
+fn generate_nonce() -> [u8; 24] {
+    let mut nonce = [0u8; 24];
+    rand::thread_rng().fill_bytes(&mut nonce);
+    return nonce;
+}
+
+fn choice_selector() -> String {
+    println!("\n Please choose what you would like to do:");
+    println!("1. View current passwords");
+    println!("2. Add a new password");
+    println!("3. Remove/Edit a password");
+    println!("4. Exit");
+    let mut input = String::new();
+    io::stdin().read_line(&mut input).expect("Failed to read line");
+    return input.trim().to_string();
+}
 
  fn generate_salt(length: usize) -> String {
     let salt_bytes: Vec<u8> = rand::thread_rng()
