@@ -1,0 +1,14 @@
+{
+    "version": 1,
+    "kdf": "argon2id",
+    "kdf_salt": "<base64-salt>",
+    "kdf_params": {
+        "mem": 65536,
+        "time": 3,
+        "lanes": 1
+    },
+    "cipher": "xchacha20poly1305",
+    "nonce": "<base64-nonce>",
+    "ciphertext": "<base64-encrypted-inner-vault>"
+}
+    
