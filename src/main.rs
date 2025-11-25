@@ -22,23 +22,29 @@ fn main() {
 
     #[derive(Serialize, Deserialize, Debug)]
     struct Data {
-        salt: Option<String>,
-        passwords: serde_json::Value
+        kdf_salt: Option<String>,
     }
 
     let data: Data = serde_json::from_str(&storage_content).unwrap_or(Data {
-        salt: None,
-        passwords: serde_json::Value::Null
+        kdf_salt: None,
     }); 
 
-
-
-    
-
-    if let Some(existing_salt) = data.salt{
+    if let Some(existing_salt) = data.kdf_salt{
         println!("Salt found!");
         println!("Welcome back to Password Manager!");
         salt = existing_salt;
+        mpass = loop {
+            print!("Please enter your master password: ");
+            io::stdout().flush().unwrap();
+            let mut input = String::new();
+            io::stdin().read_line(&mut input).expect("Failed to read line");
+            let input = input.trim();
+            if input.is_empty() {
+                println!("Password cannot be blank. Please try again.\n");
+            } else {
+                break input.to_string();
+            }
+        };
     } else {
         println!("\nNo salt found, starting fresh run.");
         println!("\nHello, welcome to Password Manager!\nTo begin, please create a master password.\nNote, this will be used to access all future passwords so if you forget it, your passwords will be inaccessible.\n");
@@ -72,56 +78,97 @@ fn main() {
     key = get_key(mpass, salt);
     println!("Your key is: {}", general_purpose::STANDARD.encode(&key));
 
-    let mut plaintext = String::new();
+    let mut vault: serde_json::Value = serde_json::from_str(&storage_content).unwrap_or(serde_json::json!({}));
 
-    if let Some(existing_password_data) = data.passwords.as_object() {
-        println!("Passwords found!");
-        let nonce = generate_nonce();
-        let cipher_nonce = Nonce::from_slice(&nonce);
-        let cipher_key = Key::from_slice(&key);
-        let cipher = ChaCha20Poly1305::new(cipher_key);
-        let ciphertext = existing_password_data["ciphertext"].as_str().unwrap();
-        let ciphertext_b64 = existing_password_data["ciphertext"].as_str().expect("ciphertext missing");
-        // Decode base64 → Vec<u8>
-        let ciphertext_bytes = base64::decode(ciphertext_b64)
-        .expect("Failed to decode base64 ciphertext");
+    let nonce: Vec<u8> = if let Some(existing_nonce_b64) = vault.get("nonce").and_then(|v| v.as_str()) {
+        base64::decode(existing_nonce_b64).expect("Failed to decode stored nonce")
+    } else {
+        println!("No nonce found. Generating new nonce...");
+        let new_nonce = generate_nonce();
+        vault["nonce"] = serde_json::Value::String(base64::encode(&new_nonce));
+        new_nonce
+    };
+    let cipher_nonce = Nonce::from_slice(&nonce);
+    let cipher_key = Key::from_slice(&key);
+    let cipher = ChaCha20Poly1305::new(cipher_key);
+    let plaintext: String;
 
-        // Decrypt
-        let plaintext_bytes = cipher
-        .decrypt(cipher_nonce, ciphertext_bytes.as_ref())
-        .expect("Decryption failed");
+    if let Some(existing_password_data) = vault.get("ciphertext") {
+        let ciphertext_b64 = existing_password_data.as_str().expect("ciphertext missing");
 
-        // Convert bytes → string
-        plaintext = String::from_utf8(plaintext_bytes)
-        .expect("Decrypted plaintext is not valid UTF-8");
+        let ciphertext_bytes = base64::decode(ciphertext_b64).expect("Failed to decode base64 ciphertext");
+
+        let plaintext_bytes = cipher.decrypt(cipher_nonce, ciphertext_bytes.as_ref()).expect("Decryption failed");
+
+        plaintext = String::from_utf8(plaintext_bytes).expect("Decrypted plaintext invalid UTF-8");
 
         println!("Decrypted passwords JSON:\n{}", plaintext);
-
     } else {
         println!("No previous passwords found.");
         plaintext = serde_json::json!({"test": "test"}).to_string();
     }
-    
-    let password_map: serde_json::Value = serde_json::from_str(&plaintext).expect("Invalid JSON");
-    let mut choice = choice_selector();
-    let mut to_be_added = String::new();
 
+    let fresh_nonce = generate_nonce();
+    vault["nonce"] = serde_json::Value::String(base64::encode(&fresh_nonce));
+
+    let json_string =
+    serde_json::to_string_pretty(&vault).expect("Failed to serialize JSON");
+    fs::write("src/storage.json", json_string).expect("Failed to write updated nonce");
+    
+    let mut password_map: serde_json::Map<String, serde_json::Value> = serde_json::from_str(&plaintext).unwrap_or_else(|_| serde_json::Map::new());
+    let mut choice = choice_selector();
+
+    run_editor(choice, password_map);
+}  
+
+fn run_editor(choice: String, password_map: serde_json::Map<String, serde_json::Value>) {
     if (choice == "1") {
-        println!("\n{}", password_map);
+        println!("\n{}", serde_json::to_string_pretty(&password_map).unwrap());
+        println!("\nWhat would you like to do next?");
+        let choice_2 = choice_selector();
+        run_editor(choice_2, password_map);
     } else if (choice == "2") {
-        {}
+        let mut user = String::new();
+        let mut pass = String::new();
+        println!("\nPlease enter the username of the password you would like to add:");
+        user = loop {
+            print!("Username: ");
+            io::stdout().flush().unwrap();
+            let mut input = String::new();
+            io::stdin().read_line(&mut input).expect("Failed to read line");
+            let input = input.trim();
+            if input.is_empty() {
+                println!("Username cannot be blank. Please try again.\n");
+            } else {
+                break input.to_string();
+            }
+        };
+        println!("\nPlease enter the password you would like to add:");
+        pass = loop {
+            print!("Password: ");
+            io::stdout().flush().unwrap();
+            let mut input = String::new();
+            io::stdin().read_line(&mut input).expect("Failed to read line");
+            let input = input.trim();
+            if input.is_empty() {
+                println!("Password cannot be blank. Please try again.\n");
+            } else {
+                break input.to_string();
+            }
+        };
+        
     } else if (choice == "3") {
         {}
     } else if (choice == "4") {
         println!("Goodbye!");
         std::process::exit(0);
     }
-}  
+}
 
-fn generate_nonce() -> [u8; 24] {
+fn generate_nonce() -> Vec<u8> {
     let mut nonce = [0u8; 24];
     rand::thread_rng().fill_bytes(&mut nonce);
-    return nonce;
+    nonce.to_vec()
 }
 
 fn choice_selector() -> String {
