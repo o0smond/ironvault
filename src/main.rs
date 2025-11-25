@@ -5,7 +5,8 @@ use rand::Rng;
 use rand::RngCore;
 use base64::{engine::general_purpose, Engine as _};
 use argon2::{Argon2, password_hash::{SaltString}, Params, PasswordHasher};
-use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
+use chacha20poly1305::XChaCha20Poly1305;
+use chacha20poly1305::{Key, XNonce};
 use chacha20poly1305::aead::{Aead, NewAead};
 use rand_core::OsRng;
 
@@ -19,20 +20,18 @@ fn main() {
     let mut mpass = String::new();
     let mut salt = String::new();
     let mut key = [0u8; 32];
+    let storage_content = fs::read_to_string("src/storage.json").unwrap_or_else(|_| "{}".to_string());
+    let mut vault: serde_json::Value = serde_json::from_str(&storage_content).unwrap_or(serde_json::json!({}));
 
     #[derive(Serialize, Deserialize, Debug)]
     struct Data {
         kdf_salt: Option<String>,
     }
 
-    let data: Data = serde_json::from_str(&storage_content).unwrap_or(Data {
-        kdf_salt: None,
-    }); 
-
-    if let Some(existing_salt) = data.kdf_salt{
+    if let Some(existing_salt) = vault.get("kdf_salt").and_then(|v| v.as_str()) {
         println!("Salt found!");
         println!("Welcome back to Password Manager!");
-        salt = existing_salt;
+        salt = existing_salt.to_string();
         mpass = loop {
             print!("Please enter your master password: ");
             io::stdout().flush().unwrap();
@@ -66,10 +65,7 @@ fn main() {
         println!("Your salt is being generated...");
         salt = generate_salt(16);
         println!("Your salt is: {}", salt);
-
-        let mut vault: serde_json::Value = serde_json::from_str(&storage_content).unwrap_or(serde_json::json!({}));
         vault["kdf_salt"] = serde_json::Value::String(salt.clone());
-
         let json_string = serde_json::to_string_pretty(&vault).expect("Failed to serialize JSON");
         fs::write("src/storage.json", json_string).expect("Failed to write to storage.json");
         println!("Salt saved to JSON.");
@@ -78,19 +74,18 @@ fn main() {
     key = get_key(mpass, salt);
     println!("Your key is: {}", general_purpose::STANDARD.encode(&key));
 
-    let mut vault: serde_json::Value = serde_json::from_str(&storage_content).unwrap_or(serde_json::json!({}));
-
     let nonce: Vec<u8> = if let Some(existing_nonce_b64) = vault.get("nonce").and_then(|v| v.as_str()) {
         base64::decode(existing_nonce_b64).expect("Failed to decode stored nonce")
     } else {
         println!("No nonce found. Generating new nonce...");
         let new_nonce = generate_nonce();
+        println!("test2");
         vault["nonce"] = serde_json::Value::String(base64::encode(&new_nonce));
-        new_nonce
+        println!("test1");
+        new_nonce        
     };
-    let cipher_nonce = Nonce::from_slice(&nonce);
-    let cipher_key = Key::from_slice(&key);
-    let cipher = ChaCha20Poly1305::new(cipher_key);
+    let cipher_nonce = XNonce::from_slice(&nonce);
+    let cipher = XChaCha20Poly1305::new(Key::from_slice(&key));
     let plaintext: String;
 
     if let Some(existing_password_data) = vault.get("ciphertext") {
