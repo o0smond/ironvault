@@ -4,11 +4,10 @@ use serde_json;
 use rand::Rng;
 use rand::RngCore;
 use base64::{engine::general_purpose, Engine as _};
-use argon2::{Argon2, password_hash::{SaltString}, Params, PasswordHasher};
+use argon2::{Argon2, Params};
 use chacha20poly1305::XChaCha20Poly1305;
 use chacha20poly1305::{Key, XNonce};
 use chacha20poly1305::aead::{Aead, NewAead};
-use rand_core::OsRng;
 
 /*
 By: Oliver Osmond
@@ -16,7 +15,7 @@ Date: 2025-11-23
 Program Details: Password Manager
 */
 fn main() {
-    let storage_content = fs::read_to_string("src/storage.json").unwrap_or_else(|_| "{}".to_string());
+    #![allow(warnings)]
     let mut mpass = String::new();
     let mut salt = String::new();
     let mut key = [0u8; 32];
@@ -79,28 +78,27 @@ fn main() {
     } else {
         println!("No nonce found. Generating new nonce...");
         let new_nonce = generate_nonce();
-        println!("test2");
         vault["nonce"] = serde_json::Value::String(base64::encode(&new_nonce));
-        println!("test1");
         new_nonce        
     };
     let cipher_nonce = XNonce::from_slice(&nonce);
     let cipher = XChaCha20Poly1305::new(Key::from_slice(&key));
     let plaintext: String;
 
-    if let Some(existing_password_data) = vault.get("ciphertext") {
-        let ciphertext_b64 = existing_password_data.as_str().expect("ciphertext missing");
+    if let Some(existing_password_data) = vault.get("ciphertext").and_then(|v| v.as_str()) {
+        let ciphertext_b64 = existing_password_data;
+        println!("{}", ciphertext_b64);
 
         let ciphertext_bytes = base64::decode(ciphertext_b64).expect("Failed to decode base64 ciphertext");
 
-        let plaintext_bytes = cipher.decrypt(cipher_nonce, ciphertext_bytes.as_ref()).expect("Decryption failed");
+        let plaintext_bytes = cipher.decrypt(cipher_nonce, ciphertext_bytes.as_ref()).expect("Failed to decrypt ciphertext");
 
         plaintext = String::from_utf8(plaintext_bytes).expect("Decrypted plaintext invalid UTF-8");
 
         println!("Decrypted passwords JSON:\n{}", plaintext);
     } else {
         println!("No previous passwords found.");
-        plaintext = serde_json::json!({"test": "test"}).to_string();
+        plaintext = String::new();
     }
 
     let fresh_nonce = generate_nonce();
@@ -112,21 +110,28 @@ fn main() {
     
     let mut password_map: serde_json::Map<String, serde_json::Value> = serde_json::from_str(&plaintext).unwrap_or_else(|_| serde_json::Map::new());
     let mut choice = choice_selector();
+    run_editor(choice, &mut password_map);
+    let new_nonce = generate_nonce();
+    let new_nonce_x = XNonce::from_slice(&new_nonce);
 
-    run_editor(choice, password_map);
+    vault["nonce"] = serde_json::Value::String(base64::encode(&new_nonce));
+    let new_ciphertext = cipher.encrypt(new_nonce_x, serde_json::to_string(&password_map).unwrap().as_bytes()).expect("Encryption failed");
+    let new_ciphertext_b64 = base64::encode(&new_ciphertext);
+    vault["ciphertext"] = serde_json::Value::String(new_ciphertext_b64);
+    let json_string =
+    serde_json::to_string_pretty(&vault).expect("Failed to serialize JSON");
+    fs::write("src/storage.json", json_string).expect("Failed to write updated nonce");
 }  
 
-fn run_editor(choice: String, password_map: serde_json::Map<String, serde_json::Value>) {
-    if (choice == "1") {
+fn run_editor(choice: String, password_map: &mut serde_json::Map<String, serde_json::Value>) {
+    if choice == "1" {
         println!("\n{}", serde_json::to_string_pretty(&password_map).unwrap());
         println!("\nWhat would you like to do next?");
         let choice_2 = choice_selector();
         run_editor(choice_2, password_map);
-    } else if (choice == "2") {
-        let mut user = String::new();
-        let mut pass = String::new();
+    } else if choice == "2" {
         println!("\nPlease enter the username of the password you would like to add:");
-        user = loop {
+        let user = loop {
             print!("Username: ");
             io::stdout().flush().unwrap();
             let mut input = String::new();
@@ -139,7 +144,7 @@ fn run_editor(choice: String, password_map: serde_json::Map<String, serde_json::
             }
         };
         println!("\nPlease enter the password you would like to add:");
-        pass = loop {
+        let pass = loop {
             print!("Password: ");
             io::stdout().flush().unwrap();
             let mut input = String::new();
@@ -151,12 +156,82 @@ fn run_editor(choice: String, password_map: serde_json::Map<String, serde_json::
                 break input.to_string();
             }
         };
-        
-    } else if (choice == "3") {
-        {}
-    } else if (choice == "4") {
-        println!("Goodbye!");
-        std::process::exit(0);
+
+        password_map.insert(user, serde_json::Value::String(pass));
+
+        println!("\n{}", serde_json::to_string_pretty(&password_map).unwrap());
+
+        let choice_2 = choice_selector();
+        run_editor(choice_2, password_map);
+    } else if choice == "3" {
+        println!("\nPlease enter the username of the password you would like to remove/edit:");
+        let user = loop {
+            print!("Username: ");
+            io::stdout().flush().unwrap();
+            let mut input = String::new();
+            io::stdin().read_line(&mut input).expect("Failed to read line");
+            let input = input.trim();
+            if input.is_empty() {
+                println!("Username cannot be blank. Please try again.\n");
+            } else {
+                break input.to_string();
+            }
+        };
+        let choice_er = loop {
+            print!("Edit or Remove? (E/R):");
+            io::stdout().flush().unwrap();
+            let mut input = String::new();
+            io::stdin().read_line(&mut input).expect("Failed to read line");
+            let input = input.trim();
+            if input.is_empty() || input != "E" && input != "e" && input != "R" && input != "r" {
+                println!("Please enter E or R. Please try again.\n");
+            } else {
+                break input.to_string();
+            }
+        };
+
+        if choice_er == "E" || choice_er == "e" {
+            let new_user = loop {
+                print!("New Username: ");
+                io::stdout().flush().unwrap();
+                let mut input = String::new();
+                io::stdin().read_line(&mut input).expect("Failed to read line");
+                let input = input.trim();
+                if input.is_empty() {
+                    println!("Username cannot be blank. Please try again.\n");
+                } else {
+                    break input.to_string();
+                }
+            };
+            let new_pass = loop {
+                print!("New Password: ");
+                io::stdout().flush().unwrap();
+                let mut input = String::new();
+                io::stdin().read_line(&mut input).expect("Failed to read line");
+                let input = input.trim();
+                if input.is_empty() {
+                    println!("Password cannot be blank. Please try again.\n");
+                } else {
+                    break input.to_string();
+                }
+            };
+            password_map.remove(&user);
+            password_map.insert(new_user, serde_json::Value::String(new_pass));
+            println!("Changes made.");
+            println!("\n{}", serde_json::to_string_pretty(&password_map).unwrap());
+            println!("\nWhat would you like to do next?");
+            let choice_2 = choice_selector();
+            run_editor(choice_2, password_map);
+        } else if choice_er == "R" || choice_er == "r" {
+            password_map.remove(&user);
+            println!("Changes made.");
+            println!("\n{}", serde_json::to_string_pretty(&password_map).unwrap());
+            println!("\nWhat would you like to do next?");
+            let choice_2 = choice_selector();
+            run_editor(choice_2, password_map);
+        }
+    } else if choice == "4" {
+        println!("Closing Password Manager...");
     }
 }
 
