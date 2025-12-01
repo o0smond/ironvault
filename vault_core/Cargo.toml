@@ -1,7 +1,11 @@
 [package]
-name = "password_manager"
+name = "vault_core"
 version = "0.1.0"
 edition = "2021"
+
+[lib]
+name = "vault_core"
+crate-type = ["cdylib"]
 
 [dependencies]
 # JSON serialization / deserialization
@@ -31,3 +35,6 @@ rpassword = "7.0"
 
 # For better error handling
 anyhow = "1.0"
+
+# For communication between frontend python and backend rust
+pyo3 = {version = "0.21", features = ["extension-module"]}
