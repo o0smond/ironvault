@@ -31,20 +31,20 @@ class Ui_MainWindow(object):
         self.horizontalLayout.setObjectName(u"horizontalLayout")
         self.verticalLayout = QVBoxLayout()
         self.verticalLayout.setObjectName(u"verticalLayout")
-        self.pushButton = QPushButton(self.centralwidget)
-        self.pushButton.setObjectName(u"pushButton")
+        self.btn_add = QPushButton(self.centralwidget)
+        self.btn_add.setObjectName(u"btn_add")
 
-        self.verticalLayout.addWidget(self.pushButton)
+        self.verticalLayout.addWidget(self.btn_add)
 
-        self.pushButton_2 = QPushButton(self.centralwidget)
-        self.pushButton_2.setObjectName(u"pushButton_2")
+        self.btn_e_r = QPushButton(self.centralwidget)
+        self.btn_e_r.setObjectName(u"btn_e_r")
 
-        self.verticalLayout.addWidget(self.pushButton_2)
+        self.verticalLayout.addWidget(self.btn_e_r)
 
-        self.pushButton_3 = QPushButton(self.centralwidget)
-        self.pushButton_3.setObjectName(u"pushButton_3")
+        self.btn_exit = QPushButton(self.centralwidget)
+        self.btn_exit.setObjectName(u"btn_exit")
 
-        self.verticalLayout.addWidget(self.pushButton_3)
+        self.verticalLayout.addWidget(self.btn_exit)
 
         self.verticalSpacer = QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
 
@@ -53,24 +53,27 @@ class Ui_MainWindow(object):
 
         self.horizontalLayout.addLayout(self.verticalLayout)
 
-        self.textBrowser = QTextBrowser(self.centralwidget)
-        self.textBrowser.setObjectName(u"textBrowser")
-        self.textBrowser.setStyleSheet(u"background-color: rgb(255, 255, 255);")
+        self.txt_main = QTextBrowser(self.centralwidget)
+        self.txt_main.setObjectName(u"txt_main")
+        self.txt_main.setStyleSheet(u"background-color: rgb(255, 255, 255);")
 
-        self.horizontalLayout.addWidget(self.textBrowser)
+        self.horizontalLayout.addWidget(self.txt_main)
 
         MainWindow.setCentralWidget(self.centralwidget)
 
         self.retranslateUi(MainWindow)
+        self.btn_add.clicked.connect(MainWindow.btn_add_a)
+        self.btn_e_r.clicked.connect(MainWindow.btn_e_r_a)
+        self.btn_exit.clicked.connect(MainWindow.btn_exit_a)
 
         QMetaObject.connectSlotsByName(MainWindow)
     # setupUi
 
     def retranslateUi(self, MainWindow):
         MainWindow.setWindowTitle(QCoreApplication.translate("MainWindow", u"Page 1", None))
-        self.pushButton.setText(QCoreApplication.translate("MainWindow", u"Add Password", None))
-        self.pushButton_2.setText(QCoreApplication.translate("MainWindow", u"Remove/Edit \n"
+        self.btn_add.setText(QCoreApplication.translate("MainWindow", u"Add Password", None))
+        self.btn_e_r.setText(QCoreApplication.translate("MainWindow", u"Remove/Edit \n"
 "password", None))
-        self.pushButton_3.setText(QCoreApplication.translate("MainWindow", u"Exit + Save", None))
+        self.btn_exit.setText(QCoreApplication.translate("MainWindow", u"Exit + Save", None))
     # retranslateUi
 

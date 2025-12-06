@@ -7,7 +7,7 @@
     "mem": 65536,
     "time": 3
   },
-  "kdf_salt": null,
+  "kdf_salt": "diYd30rKR2MOW6RoLOENdg==",
   "nonce": null,
   "version": 1
 }

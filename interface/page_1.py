@@ -13,6 +13,10 @@ import vault_core
 
 if __name__ == "__main__":    
     manager.start()
+    
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+storage_path = os.path.join(BASE_DIR, "..", "vault_core", "src", "storage.json")
+storage_path = os.path.realpath(storage_path)
 
 class MainWindow(QMainWindow, Ui_MainWindow):
     def __init__(self, parent=None):
@@ -25,9 +29,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         if password == "":
             self.lbl_welcome.setText("Please enter a password.")
         else:
-            rmsg = vault_core.pg1_startup(password)
+            rmsg = vault_core.pg1_startup(password, storage_path)
             if rmsg == "ok":
                 manager.widget.setCurrentWidget(manager.screen2)
+                manager.widget.resize(862, 611)
             else:
                 self.lbl_welcome.setText(rmsg)
         

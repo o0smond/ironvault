@@ -21,14 +21,14 @@
     <item>
      <layout class="QVBoxLayout" name="verticalLayout">
       <item>
-       <widget class="QPushButton" name="pushButton">
+       <widget class="QPushButton" name="btn_add">
         <property name="text">
          <string>Add Password</string>
         </property>
        </widget>
       </item>
       <item>
-       <widget class="QPushButton" name="pushButton_2">
+       <widget class="QPushButton" name="btn_e_r">
         <property name="text">
          <string>Remove/Edit 
 password</string>
@@ -36,7 +36,7 @@ password</string>
        </widget>
       </item>
       <item>
-       <widget class="QPushButton" name="pushButton_3">
+       <widget class="QPushButton" name="btn_exit">
         <property name="text">
          <string>Exit + Save</string>
         </property>
@@ -58,7 +58,7 @@ password</string>
      </layout>
     </item>
     <item>
-     <widget class="QTextBrowser" name="textBrowser">
+     <widget class="QTextBrowser" name="txt_main">
       <property name="styleSheet">
        <string notr="true">background-color: rgb(255, 255, 255);</string>
       </property>
@@ -68,5 +68,59 @@ password</string>
   </widget>
  </widget>
  <resources/>
- <connections/>
+ <connections>
+  <connection>
+   <sender>btn_add</sender>
+   <signal>clicked()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>btn_add_a()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>42</x>
+     <y>23</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>962</x>
+     <y>26</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>btn_e_r</sender>
+   <signal>clicked()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>btn_e_r_a()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>35</x>
+     <y>74</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>990</x>
+     <y>82</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>btn_exit</sender>
+   <signal>clicked()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>btn_exit_a()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>41</x>
+     <y>110</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>1009</x>
+     <y>137</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
+ <slots>
+  <slot>btn_add_a()</slot>
+  <slot>btn_e_r_a()</slot>
+  <slot>btn_exit_a()</slot>
+ </slots>
 </ui>

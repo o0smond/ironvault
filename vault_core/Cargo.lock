@@ -564,6 +564,7 @@ dependencies = [
  "base64ct",
  "chacha20 0.8.2",
  "chacha20poly1305",
+ "once_cell",
  "pyo3",
  "rand",
  "rand_core",
