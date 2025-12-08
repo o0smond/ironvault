@@ -17,6 +17,7 @@ use once_cell::sync::Lazy;
 static ATTEMPTS: AtomicUsize = AtomicUsize::new(0);
 static PASSWORD: Mutex<Option<String>> = Mutex::new(None);
 static SPATH: Mutex<Option<String>> = Mutex::new(None);
+static KEY: Lazy<RwLock<[u8; 32]>> = Lazy::new(|| RwLock::new([0u8; 32]));
 static PASSWORD_MAP: Lazy<RwLock<Map<String, Value>>> = Lazy::new(|| {
     RwLock::new(Map::new())
 });
@@ -49,7 +50,7 @@ fn pg1_startup(mpass: &str, storage_path: &str) -> PyResult<String> {
 
 #[pyfunction]
 fn unlock_vault() -> PyResult<String> {
-    let storage_path = SPATH.lock().unwrap().as_ref().unwrap().clone();
+    let storage_path = SPATH.lock().unwrap().as_ref().ok_or_else(|| PyValueError::new_err("storage path not set"))?.clone();
     let storage_content = fs::read_to_string(&storage_path)
         .unwrap_or_else(|_| "{}".to_string());
 
@@ -61,35 +62,41 @@ fn unlock_vault() -> PyResult<String> {
         .ok_or_else(|| PyValueError::new_err("vault missing kdf_salt"))?
         .to_string();
 
-    let pass = PASSWORD.lock().unwrap().as_ref().unwrap().clone();
-    let key = get_key(pass, salt)?; // propagate PyErr if any
+    let pass = PASSWORD.lock().unwrap().as_ref().ok_or_else(|| PyValueError::new_err("password not set"))?.clone();
+    let key = get_key(pass.clone(), salt.clone())?;
 
-    let nonce_b64 = vault.get("nonce")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| PyValueError::new_err("vault missing nonce"))?;
-    let nonce_bytes = general_purpose::STANDARD
-        .decode(nonce_b64)
-        .map_err(|_| PyValueError::new_err("bad nonce"))?;
-    let xnonce = XNonce::from_slice(&nonce_bytes);
+    let mut key_guard = KEY.write().unwrap();
+    *key_guard = key;
 
-    let plaintext = if let Some(cipher_b64) = vault.get("ciphertext").and_then(|v| v.as_str()) {
-        let cipher_bytes = general_purpose::STANDARD
-            .decode(cipher_b64)
-            .map_err(|_| PyValueError::new_err("bad ciphertext"))?;
+    let mut return_txt = serde_json::to_string_pretty(&*PASSWORD_MAP.read().unwrap()).unwrap();
+    if let Some(existing_data) = vault.get("ciphertext").and_then(|v| v.as_str()) {
+        let nonce_b64 = vault.get("nonce")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| PyValueError::new_err("vault missing nonce"))?;
+        let nonce_bytes = general_purpose::STANDARD
+            .decode(nonce_b64)
+            .map_err(|_| PyValueError::new_err("bad nonce"))?;
+        let xnonce = XNonce::from_slice(&nonce_bytes);
 
-        let cipher = XChaCha20Poly1305::new(Key::from_slice(&key));
-        let pt = cipher
-            .decrypt(&xnonce, cipher_bytes.as_ref())
-            .map_err(|_| PyValueError::new_err("decryption failed"))?;
-        String::from_utf8(pt)
-            .map_err(|_| PyValueError::new_err("plaintext not UTF-8"))?
+        let plaintext = if let Some(cipher_b64) = vault["ciphertext"].as_str().and_then(|v| Some(v)) {
+            let cipher_bytes = base64::decode(cipher_b64).map_err(|_| PyValueError::new_err("bad ciphertext"))?;
+
+            let cipher = XChaCha20Poly1305::new(Key::from_slice(&key));
+            let pt = cipher
+                .decrypt(&xnonce, cipher_bytes.as_ref())
+                .map_err(|_| PyValueError::new_err("decryption failed"))?;
+            String::from_utf8(pt)
+                .map_err(|_| PyValueError::new_err("plaintext not UTF-8"))?
+        } else {
+            String::new()
+        };
+        let mut p_map: serde_json::Map<String, serde_json::Value> = serde_json::from_str(&plaintext).unwrap_or_else(|_| serde_json::Map::new());
+        let mut map_guard = PASSWORD_MAP.write().unwrap();
+        *map_guard = p_map.clone();
+        return_txt = serde_json::to_string_pretty(&p_map).unwrap(); 
     } else {
-        String::new()
-    };
-    let mut p_map: serde_json::Map<String, serde_json::Value> = serde_json::from_str(&plaintext).unwrap_or_else(|_| serde_json::Map::new());
-    let mut map_guard = PASSWORD_MAP.write().unwrap();
-    *map_guard = p_map.clone();
-    let return_txt = serde_json::to_string_pretty(&p_map).unwrap(); 
+        return_txt = "{}".to_string();
+    }
     Ok(return_txt)
 }
 
@@ -103,18 +110,44 @@ fn add_password(user: &str, pass: &str) -> PyResult<String> {
 
 #[pyfunction]
 fn lock_vault() -> PyResult<String> {
-   /* let new_nonce = generate_nonce();
-    vault["nonce"] = serde_json::Value::String(general_purpose::STANDARD.encode(&new_nonce));
-
-    fs::write(
-        &storage_path,
-        serde_json::to_string_pretty(&vault)
-            .map_err(|e| PyValueError::new_err(e.to_string()))?,
-    )
-    .map_err(|e| PyValueError::new_err(e.to_string()))?; */
-    return Ok("ok".to_string());
+    let mut map_guard = PASSWORD_MAP.write().unwrap();
+    let storage_path = SPATH.lock().unwrap().as_ref().unwrap().clone();
+    let storage_content = fs::read_to_string(&storage_path)
+        .unwrap_or_else(|_| "{}".to_string());
+    let mut vault: serde_json::Value =
+        serde_json::from_str(&storage_content).unwrap_or_else(|_| serde_json::json!({}));
+    let key_guard = KEY.read().unwrap();
+    let cipher = XChaCha20Poly1305::new(Key::from_slice(&*key_guard));
+    let new_nonce = generate_nonce();
+    let new_xnonce = XNonce::from_slice(&new_nonce);
+    vault["nonce"] = serde_json::Value::String(base64::encode(&new_nonce));
+    let new_ciphertext = cipher.encrypt(new_xnonce, serde_json::to_string(&*map_guard).unwrap().as_bytes()).unwrap();
+    let new_ciphertext_b64 = base64::encode(&new_ciphertext);
+    vault["ciphertext"] = serde_json::Value::String(new_ciphertext_b64);
+    let json_string = serde_json::to_string_pretty(&vault).unwrap();
+    fs::write(&storage_path, json_string).unwrap();
+    Ok("ok".to_string())
 }
 
+#[pyfunction]
+fn print_map() -> PyResult<String> {
+    let map_guard = PASSWORD_MAP.read().unwrap();
+    let return_txt = serde_json::to_string_pretty(&*map_guard).unwrap(); 
+    Ok(return_txt)
+}
+
+#[pyfunction]
+fn edit(user: &str, pass: &str) -> PyResult<()> {
+    Ok(())
+}
+
+#[pyfunction]
+fn delete(user: &str) -> PyResult<()> { 
+    let mut map = PASSWORD_MAP.write().unwrap();
+    map.remove(user);
+    let return_txt = serde_json::to_string_pretty(&*map).unwrap();
+    Ok(())
+}
 
 #[pymodule]
 fn vault_core(_py: Python, m: &PyModule) -> PyResult<()> {
@@ -122,6 +155,9 @@ fn vault_core(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(unlock_vault, m)?)?;
     m.add_function(wrap_pyfunction!(lock_vault, m)?)?;
     m.add_function(wrap_pyfunction!(add_password, m)?)?;
+    m.add_function(wrap_pyfunction!(print_map, m)?)?;
+    m.add_function(wrap_pyfunction!(edit, m)?)?;
+    m.add_function(wrap_pyfunction!(delete, m)?)?;
     Ok(())
 }
 
@@ -143,6 +179,6 @@ fn get_key(arg_mpass: String, arg_salt: String) -> Result<[u8; 32], PyErr> {
     let mut key = [0u8; 32];
     let params = Params::new(65536, 3, 1, None).expect("Invalid Argon2 parameters");
     let argon2 = Argon2::new(argon2::Algorithm::Argon2id, argon2::Version::V0x13, params);
-    argon2.hash_password_into(arg_mpass.as_bytes(), arg_salt.as_bytes(), &mut key).expect("Failed to derive key");
+    argon2.hash_password_into(arg_mpass.as_bytes(), arg_salt.as_bytes(), &mut key).or_else(|_| Err(PyValueError::new_err("decryption failed")))?;
     return Ok(key);
 }

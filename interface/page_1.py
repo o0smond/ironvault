@@ -33,6 +33,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             if rmsg == "ok":
                 manager.widget.setCurrentWidget(manager.screen2)
                 manager.widget.resize(862, 611)
+                vault_core.unlock_vault()
+                manager.screen2.setup()
             else:
                 self.lbl_welcome.setText(rmsg)
         

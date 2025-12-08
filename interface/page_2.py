@@ -20,26 +20,56 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         with manager.image_gui_path():
             self.setupUi(self)
             
-    def setup():
-        pass
+    def setup(self):
+        self.txt_main.setText(self.map_cleaner(str(vault_core.print_map())))
+    
+    
+    def map_cleaner(self, map):
+        map = map.replace("{\n", "")
+        map = map.replace("}", "")
+        map = map.replace('"', "")
+        map = map.replace(",", "\n")
+        return map
+                
             
     def btn_add_a(self):
         while True:
             user = QInputDialog.getText(self, 'What is the username for the entry?', 'Username:')
             password = QInputDialog.getText(self, 'What is the password for the entry?', 'Password:')
+            ok = False
+            for i in range(len(user)):
+                if user[i] == '"' or "{\n" or "}":
+                    user = QInputDialog.getText(self, 'Password contains illeagal characters " or { or }', 'Username:')
+            for i in range(len(password)):
+                if password[i] == '"' or "{\n" or "}":
+                    password = QInputDialog.getText(self, 'Password contains illeagal characters " or { or }', 'Password:')
             if user[0] == "":
                 user = QInputDialog.getText(self, 'Username cannot be empty', 'Username:')
             elif password[0] == "":
                 password = QInputDialog.getText(self, 'Password cannot be empty', 'Password:')
-            else:
+            elif ok == True:
                 break
-        self.txt_main.setText(vault_core.add_password(user[0], password[0]))
-        
-        
-        
+        self.txt_main.setText(self.map_cleaner(str(vault_core.add_password(user[0], password[0])))) 
     
     def btn_e_r_a(self):
-        pass
+        option = QInputDialog.getItem(self, "Edit or Remove", "Edit or Remove", ["Edit", "Remove"])
+        if option[0] == "Edit":
+            pass
+        elif option[0] == "Remove":
+            while True:
+                user = QInputDialog.getText(self, 'What is the username for the entry?', 'Username:')
+                ok = False
+                for i in range(len(user)):
+                    if user[i] == '"' or "{\n" or "}":
+                        user = QInputDialog.getText(self, 'Password contains illeagal characters " or { or }', 'Username:')
+                if user[0] == "":
+                    user = QInputDialog.getText(self, 'Username cannot be empty', 'Username:')
+                elif ok == True:
+                    break
+            self.txt_main.setText(self.map_cleaner(str(vault_core.delete(user[0]))))
+        self.setup()
         
     def btn_exit_a(self):
-        pass
+        rmsg = vault_core.lock_vault()
+        if rmsg == "ok":
+            exit(0)
