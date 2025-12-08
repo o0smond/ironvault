@@ -35,19 +35,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def btn_add_a(self):
         while True:
             user = QInputDialog.getText(self, 'What is the username for the entry?', 'Username:')
-            password = QInputDialog.getText(self, 'What is the password for the entry?', 'Password:')
-            ok = False
-            for i in range(len(user)):
-                if user[i] == '"' or "{\n" or "}":
-                    user = QInputDialog.getText(self, 'Password contains illeagal characters " or { or }', 'Username:')
-            for i in range(len(password)):
-                if password[i] == '"' or "{\n" or "}":
-                    password = QInputDialog.getText(self, 'Password contains illeagal characters " or { or }', 'Password:')
             if user[0] == "":
-                user = QInputDialog.getText(self, 'Username cannot be empty', 'Username:')
-            elif password[0] == "":
-                password = QInputDialog.getText(self, 'Password cannot be empty', 'Password:')
-            elif ok == True:
+                pass
+            else:
+                break
+        while True:
+            password = QInputDialog.getText(self, 'What is the password for the entry?', 'Password:')
+            if password[0] == "":
+                pass
+            else:
                 break
         self.txt_main.setText(self.map_cleaner(str(vault_core.add_password(user[0], password[0])))) 
     
@@ -58,13 +54,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         elif option[0] == "Remove":
             while True:
                 user = QInputDialog.getText(self, 'What is the username for the entry?', 'Username:')
-                ok = False
-                for i in range(len(user)):
-                    if user[i] == '"' or "{\n" or "}":
-                        user = QInputDialog.getText(self, 'Password contains illeagal characters " or { or }', 'Username:')
                 if user[0] == "":
-                    user = QInputDialog.getText(self, 'Username cannot be empty', 'Username:')
-                elif ok == True:
+                    pass
+                else:
                     break
             self.txt_main.setText(self.map_cleaner(str(vault_core.delete(user[0]))))
         self.setup()
