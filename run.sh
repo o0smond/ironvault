@@ -1,8 +1,8 @@
 #!/bin/bash
-#for home setup
+#for school computer setup
 result=$(which python)
 if [ "$result" == "/usr/bin/python" ]; then
-    source /home/oliver/py311_venv/bin/activate
+    source /home/olivero98/py311_venv/bin/activate
 fi
 result=$(maturin -V)
 if [ "$result" != "bash: maturin: command not found" ]; then

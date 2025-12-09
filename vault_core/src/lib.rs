@@ -1,3 +1,8 @@
+/*
+By: Oliver Osmond
+Date: 2025-11-30
+Program Details: Rust logic. Contains all functions that are called from Python regarding vault managment.
+ */
 use pyo3::prelude::*;
 use std::{fs, io::{self, Write}, sync::Mutex, sync::atomic::{AtomicUsize, Ordering}, sync::RwLock};
 use serde::{Serialize, Deserialize};
@@ -101,14 +106,6 @@ fn unlock_vault() -> PyResult<String> {
 }
 
 #[pyfunction]
-fn add_password(user: &str, pass: &str) -> PyResult<String> {
-    let mut map = PASSWORD_MAP.write().unwrap();
-    map.insert(user.to_string(), Value::String(pass.to_string()));
-    let return_txt = serde_json::to_string_pretty(&*map).unwrap(); 
-    Ok(return_txt)
-}
-
-#[pyfunction]
 fn lock_vault() -> PyResult<String> {
     let mut map_guard = PASSWORD_MAP.write().unwrap();
     let storage_path = SPATH.lock().unwrap().as_ref().unwrap().clone();
@@ -130,15 +127,18 @@ fn lock_vault() -> PyResult<String> {
 }
 
 #[pyfunction]
-fn print_map() -> PyResult<String> {
-    let map_guard = PASSWORD_MAP.read().unwrap();
-    let return_txt = serde_json::to_string_pretty(&*map_guard).unwrap(); 
+fn add_password(user: &str, pass: &str) -> PyResult<String> {
+    let mut map = PASSWORD_MAP.write().unwrap();
+    map.insert(user.to_string(), Value::String(pass.to_string()));
+    let return_txt = serde_json::to_string_pretty(&*map).unwrap(); 
     Ok(return_txt)
 }
 
 #[pyfunction]
-fn edit(user: &str, pass: &str) -> PyResult<()> {
-    Ok(())
+fn print_map() -> PyResult<String> {
+    let map_guard = PASSWORD_MAP.read().unwrap();
+    let return_txt = serde_json::to_string_pretty(&*map_guard).unwrap(); 
+    Ok(return_txt)
 }
 
 #[pyfunction]
@@ -156,7 +156,6 @@ fn vault_core(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(lock_vault, m)?)?;
     m.add_function(wrap_pyfunction!(add_password, m)?)?;
     m.add_function(wrap_pyfunction!(print_map, m)?)?;
-    m.add_function(wrap_pyfunction!(edit, m)?)?;
     m.add_function(wrap_pyfunction!(delete, m)?)?;
     Ok(())
 }

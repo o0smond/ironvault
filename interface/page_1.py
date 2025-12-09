@@ -1,7 +1,6 @@
-
-# By: <Your Name Here>
+# By: Oliver Osmond
 # Date: 2025-11-30
-# Program Details: <Program Description Here>
+# Program Details: Python logic for starting page. Manages rust flow.
 
 import os, sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

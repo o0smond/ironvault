@@ -1,6 +1,6 @@
-# By: <Your Name Here>
+# By: Oliver Osmond
 # Date: 2025-11-30
-# Program Details: <Program Description Here>
+# Program Details: Python logic for main page. Manages rust flow, verifies user inputs, translates rust outputs.
 
 import os, sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -33,32 +33,43 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 
             
     def btn_add_a(self):
-        while True:
-            user = QInputDialog.getText(self, 'What is the username for the entry?', 'Username:')
-            if user[0] == "":
-                pass
-            else:
-                break
-        while True:
-            password = QInputDialog.getText(self, 'What is the password for the entry?', 'Password:')
-            if password[0] == "":
-                pass
-            else:
-                break
-        self.txt_main.setText(self.map_cleaner(str(vault_core.add_password(user[0], password[0])))) 
+        user, ok = QInputDialog.getText(self, 'Add Entry', 'Username:')
+        if not ok or not user.strip():
+            return
+            
+        password, ok = QInputDialog.getText(self, 'Add Entry', 'Password:')
+        if not ok or not password.strip():
+            return
+            
+        result = vault_core.add_password(user, password)
+        self.txt_main.setText(self.map_cleaner(str(result)))
     
     def btn_e_r_a(self):
-        option = QInputDialog.getItem(self, "Edit or Remove", "Edit or Remove", ["Edit", "Remove"])
-        if option[0] == "Edit":
-            pass
-        elif option[0] == "Remove":
-            while True:
-                user = QInputDialog.getText(self, 'What is the username for the entry?', 'Username:')
-                if user[0] == "":
-                    pass
-                else:
-                    break
-            self.txt_main.setText(self.map_cleaner(str(vault_core.delete(user[0]))))
+        option, ok = QInputDialog.getItem(self, "Edit or Remove", "Choose action:", ["Edit", "Remove"], 0, False)
+        if not ok:
+            return
+            
+        user, ok = QInputDialog.getText(self, 'Select Entry', 'Username:')
+        if not ok or not user.strip():
+            return
+            
+        if option == "Edit":
+            new_user, ok = QInputDialog.getText(self, 'Edit Entry', 'New username:')
+            if not ok or not new_user.strip():
+                return
+                
+            new_pass, ok = QInputDialog.getText(self, 'Edit Entry', 'New password:')
+            if not ok or not new_pass.strip():
+                return
+                
+            vault_core.delete(user)
+            result = vault_core.add_password(new_user, new_pass)
+            self.txt_main.setText(self.map_cleaner(str(result)))
+            
+        elif option == "Remove":
+            result = vault_core.delete(user)
+            self.txt_main.setText(self.map_cleaner(str(result)))
+            
         self.setup()
         
     def btn_exit_a(self):

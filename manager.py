@@ -1,7 +1,7 @@
 
-# By: <Your Name Here>
+# By: Oliver Osmond
 # Date:2025-11-30
-# Program Details: <Program Description Here>
+# Program Details: Generated manager file for the PyQT framework.
 
 import sys, os, contextlib
 from PySide6.QtWidgets import (QStackedWidget, QApplication)
