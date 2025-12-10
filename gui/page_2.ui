@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Page 1</string>
+   <string>Password Manager</string>
   </property>
   <widget class="QWidget" name="centralwidget">
    <property name="styleSheet">
@@ -32,6 +32,13 @@
         <property name="text">
          <string>Remove/Edit 
 password</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btn_save">
+        <property name="text">
+         <string>Save</string>
         </property>
        </widget>
       </item>
@@ -108,12 +115,28 @@ password</string>
    <slot>btn_exit_a()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>41</x>
-     <y>110</y>
+     <x>51</x>
+     <y>149</y>
     </hint>
     <hint type="destinationlabel">
      <x>1009</x>
      <y>137</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>btn_save</sender>
+   <signal>clicked()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>btn_save_a()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>62</x>
+     <y>108</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>1026</x>
+     <y>114</y>
     </hint>
    </hints>
   </connection>
@@ -122,5 +145,6 @@ password</string>
   <slot>btn_add_a()</slot>
   <slot>btn_e_r_a()</slot>
   <slot>btn_exit_a()</slot>
+  <slot>btn_save_a()</slot>
  </slots>
 </ui>

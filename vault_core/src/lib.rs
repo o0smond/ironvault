@@ -33,16 +33,24 @@ fn pg1_startup(mpass: &str, storage_path: &str) -> PyResult<String> {
     *SPATH.lock().unwrap() = Some(storage_path.to_string());
     let storage_content = fs::read_to_string(storage_path).unwrap_or_else(|_| "{}".to_string());
     let mut vault: serde_json::Value = serde_json::from_str(&storage_content).unwrap_or(serde_json::json!({}));
+    
     if let Some(existing_data) = vault.get("ciphertext").and_then(|v| v.as_str()) {
         let salt = vault.get("kdf_salt").and_then(|v| v.as_str()).unwrap().to_string();
-        match get_key(mpass.to_string(), salt.to_string()) {
-            Ok(_) => {
-                return Ok("ok".to_string());
-            }
-            Err(_) => {
-                let attempt = ATTEMPTS.fetch_add(1, Ordering::SeqCst) + 1;
-                return Ok(format!("Wrong Password. This is attempt {}", attempt));
-            }
+        let key = get_key(mpass.to_string().clone(), salt.clone())?;
+        let nonce_b64 = vault.get("nonce").and_then(|v| v.as_str()).ok_or_else(|| PyValueError::new_err("vault missing nonce"))?;
+        let nonce_bytes = general_purpose::STANDARD.decode(nonce_b64).map_err(|_| PyValueError::new_err("bad nonce"))?;
+        let xnonce = XNonce::from_slice(&nonce_bytes);
+
+        let cipher_bytes = base64::decode(existing_data)
+        .map_err(|_| PyValueError::new_err("bad ciphertext"))?;
+
+        let cipher = XChaCha20Poly1305::new(Key::from_slice(&key));
+
+        if cipher.decrypt(&xnonce, cipher_bytes.as_ref()).is_ok() {
+            Ok("ok".to_string())                      // password correct
+        } else {
+            let attempt = ATTEMPTS.fetch_add(1, Ordering::SeqCst) + 1;
+            Ok(format!("Wrong Password. This is attempt {}", attempt))
         }
     } else {
         let salt = generate_salt(16);

@@ -41,6 +41,11 @@ class Ui_MainWindow(object):
 
         self.verticalLayout.addWidget(self.btn_e_r)
 
+        self.btn_save = QPushButton(self.centralwidget)
+        self.btn_save.setObjectName(u"btn_save")
+
+        self.verticalLayout.addWidget(self.btn_save)
+
         self.btn_exit = QPushButton(self.centralwidget)
         self.btn_exit.setObjectName(u"btn_exit")
 
@@ -65,15 +70,17 @@ class Ui_MainWindow(object):
         self.btn_add.clicked.connect(MainWindow.btn_add_a)
         self.btn_e_r.clicked.connect(MainWindow.btn_e_r_a)
         self.btn_exit.clicked.connect(MainWindow.btn_exit_a)
+        self.btn_save.clicked.connect(MainWindow.btn_save_a)
 
         QMetaObject.connectSlotsByName(MainWindow)
     # setupUi
 
     def retranslateUi(self, MainWindow):
-        MainWindow.setWindowTitle(QCoreApplication.translate("MainWindow", u"Page 1", None))
+        MainWindow.setWindowTitle(QCoreApplication.translate("MainWindow", u"Password Manager", None))
         self.btn_add.setText(QCoreApplication.translate("MainWindow", u"Add Password", None))
         self.btn_e_r.setText(QCoreApplication.translate("MainWindow", u"Remove/Edit \n"
 "password", None))
+        self.btn_save.setText(QCoreApplication.translate("MainWindow", u"Save", None))
         self.btn_exit.setText(QCoreApplication.translate("MainWindow", u"Exit + Save", None))
     # retranslateUi
 

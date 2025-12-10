@@ -5,7 +5,7 @@
 import os, sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import manager
-from PySide6.QtWidgets import QInputDialog
+from PySide6.QtWidgets import QInputDialog, QMessageBox
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QMainWindow
 from gui.page_2_ui import Ui_MainWindow
@@ -20,25 +20,57 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         with manager.image_gui_path():
             self.setupUi(self)
             
+    text_warning = '*Please note these illegal characters:\n", {, }, and , \nwill be automatically removed.\n'
+            
     def setup(self):
         self.txt_main.setText(self.map_cleaner(str(vault_core.print_map())))
     
     
     def map_cleaner(self, map):
         map = map.replace("{\n", "")
+        map = map.replace("{", "")
         map = map.replace("}", "")
         map = map.replace('"', "")
         map = map.replace(",", "\n")
         return map
-                
-            
+    
+    def input_cleaner(self, input):
+        input = input.replace("{\n", "")
+        input = input.replace("{", "")
+        input = input.replace("}", "")
+        input = input.replace('"', "")
+        input = input.replace(",", "")
+        return input
+    
+    def gen_userlist(self, clean_map):
+        user_list = []
+        for line in clean_map.split("\n"):
+            if ": " in line:
+                user, _ = line.split(": ", 1)
+                user_list.append(user.strip())
+        return user_list
+    
     def btn_add_a(self):
-        user, ok = QInputDialog.getText(self, 'Add Entry', 'Username:')
-        if not ok or not user.strip():
+        userlist = self.gen_userlist(self.map_cleaner(str(vault_core.print_map())))
+        
+        user, ok = QInputDialog.getText(self, 'Add Entry', f'{self.text_warning}Username:')
+        user = self.input_cleaner(user)
+        if not ok:
             return
+        if not user.strip():
+            QMessageBox.information(self, "Error", "Username cannot be blank")
+            return
+        for i in range(len(userlist)):
+            if user == userlist[i]:
+                QMessageBox.information(self, "Error", "Username already exists.")
+                return
             
-        password, ok = QInputDialog.getText(self, 'Add Entry', 'Password:')
-        if not ok or not password.strip():
+        password, ok = QInputDialog.getText(self, 'Add Entry', f'{self.text_warning}Password:')
+        password = self.input_cleaner(password)
+        if not ok:
+            return
+        if not user.strip():
+            QMessageBox.information(self, "Error", "Password cannot be blank")
             return
             
         result = vault_core.add_password(user, password)
@@ -48,18 +80,35 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         option, ok = QInputDialog.getItem(self, "Edit or Remove", "Choose action:", ["Edit", "Remove"], 0, False)
         if not ok:
             return
+        
+        userlist = self.gen_userlist(self.map_cleaner(str(vault_core.print_map())))
             
-        user, ok = QInputDialog.getText(self, 'Select Entry', 'Username:')
-        if not ok or not user.strip():
+        user, ok = QInputDialog.getText(self, 'Select Entry', f'{self.text_warning}Username:')
+        user = self.input_cleaner(user)
+        if not ok:
             return
-            
+        if not user.strip():
+            QMessageBox.information(self, "Error", "Username cannot be blank")
+            return
+        
         if option == "Edit":
-            new_user, ok = QInputDialog.getText(self, 'Edit Entry', 'New username:')
-            if not ok or not new_user.strip():
+            new_user, ok = QInputDialog.getText(self, 'Edit Entry', f'{self.text_warning}New username:')
+            new_user = self.input_cleaner(new_user)
+            if not ok:
                 return
-                
-            new_pass, ok = QInputDialog.getText(self, 'Edit Entry', 'New password:')
-            if not ok or not new_pass.strip():
+            if not user.strip():
+                QMessageBox.information(self, "Error", "New username cannot be blank")
+                return
+            for i in range(len(userlist)):
+                if new_user == userlist[i]:
+                    QMessageBox.information(self, "Error", "Username already exists.")
+                    return
+            new_pass, ok = QInputDialog.getText(self, 'Edit Entry', f'{self.text_warning}New password:')
+            new_pass = self.input_cleaner(new_pass)
+            if not ok:
+                return
+            if not user.strip():
+                QMessageBox.information(self, "Error", "New password cannot be blank")
                 return
                 
             vault_core.delete(user)
@@ -71,6 +120,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.txt_main.setText(self.map_cleaner(str(result)))
             
         self.setup()
+        
+    def btn_save_a(self):
+        rmsg = vault_core.lock_vault()
+        if rmsg == "ok":
+            QMessageBox.information(self, "Success", "Passwords saved!")
+        else:
+            QMessageBox.information(self, "Error", "Passwords failed to save.")
         
     def btn_exit_a(self):
         rmsg = vault_core.lock_vault()

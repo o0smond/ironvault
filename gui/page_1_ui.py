@@ -103,7 +103,7 @@ class Ui_MainWindow(object):
     # setupUi
 
     def retranslateUi(self, MainWindow):
-        MainWindow.setWindowTitle(QCoreApplication.translate("MainWindow", u"Page 1", None))
+        MainWindow.setWindowTitle(QCoreApplication.translate("MainWindow", u"Password Manager", None))
         self.lbl_welcome.setText(QCoreApplication.translate("MainWindow", u"Welcome to password manager! Please enter your password, or what you would like it to be \n"
 " if this is your first time using the software.", None))
         self.btn_ok.setText(QCoreApplication.translate("MainWindow", u"Ok", None))
