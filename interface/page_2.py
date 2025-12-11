@@ -4,21 +4,30 @@
 
 import os, sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import manager
+import manager_core as core
 from PySide6.QtWidgets import QInputDialog, QMessageBox
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QMainWindow
-from gui.page_2_ui import Ui_MainWindow
+from page_2_ui import Ui_MainWindow
 import vault_core
 
+if getattr(sys, 'frozen', False):
+    import PySide6
+    os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = os.path.join(
+        sys._MEIPASS, "PySide6", "plugins", "platforms"
+    )
+
+
 if __name__ == "__main__":    
-    manager.start()
+    core.start()
 
 class MainWindow(QMainWindow, Ui_MainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
-        with manager.image_gui_path():
+        with core.image_gui_path():
             self.setupUi(self)
+            self.adjustSize()
+            self.setFixedSize(self.size())
             
     text_warning = '*Please note these illegal characters:\n", {, }, and , \nwill be automatically removed.\n'
             
