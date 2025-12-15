@@ -17,3 +17,4 @@ pub mod grid;
 pub mod text_button;
 pub mod text_input;
 pub mod label;
+pub mod vault_core;

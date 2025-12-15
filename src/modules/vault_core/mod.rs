@@ -1,7 +1,7 @@
 /*
 By: Oliver Osmond
 Date: 2025-11-30
-Program Details: Rust logic. Contains all functions that are called from Python regarding vault managment.
+Program Details: Rust logic. Contains all functions that are called from main.rs regarding vault managment.
  */
 use std::{fs, io::{self, Write}, sync::Mutex, sync::atomic::{AtomicUsize, Ordering}, sync::RwLock};
 use serde::{Serialize, Deserialize};
@@ -16,7 +16,6 @@ use chacha20poly1305::{Key, XNonce};
 use chacha20poly1305::aead::{Aead, NewAead};
 use once_cell::sync::Lazy;
 
-
 static ATTEMPTS: AtomicUsize = AtomicUsize::new(0);
 static PASSWORD: Mutex<Option<String>> = Mutex::new(None);
 static SPATH: Mutex<Option<String>> = Mutex::new(None);
@@ -25,7 +24,7 @@ static PASSWORD_MAP: Lazy<RwLock<Map<String, Value>>> = Lazy::new(|| {
     RwLock::new(Map::new())
 });
 
-fn pg1_startup(mpass: &str, storage_path: &str) ->Result<String> {
+pub fn pg1_startup(mpass: &str, storage_path: &str) -> io::Result<String> {
     *PASSWORD.lock().unwrap() = Some(mpass.to_string());
     *SPATH.lock().unwrap() = Some(storage_path.to_string());
     let storage_content = fs::read_to_string(storage_path).unwrap_or_else(|_| "{}".to_string());
@@ -33,13 +32,13 @@ fn pg1_startup(mpass: &str, storage_path: &str) ->Result<String> {
     
     if let Some(existing_data) = vault.get("ciphertext").and_then(|v| v.as_str()) {
         let salt = vault.get("kdf_salt").and_then(|v| v.as_str()).unwrap().to_string();
-        let key = get_key(mpass.to_string().clone(), salt.clone())?;
-        let nonce_b64 = vault.get("nonce").and_then(|v| v.as_str()).ok_or_else(|| ValueError::new_err("vault missing nonce"))?;
-        let nonce_bytes = general_purpose::STANDARD.decode(nonce_b64).map_err(|_| ValueError::new_err("bad nonce"))?;
+        let key = get_key(mpass.to_string().clone(), salt.clone()).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        let nonce_b64 = vault.get("nonce").and_then(|v| v.as_str()).ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "vault missing nonce"))?;
+        let nonce_bytes = general_purpose::STANDARD.decode(nonce_b64).map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "bad nonce"))?;
         let xnonce = XNonce::from_slice(&nonce_bytes);
 
-        let cipher_bytes = base64::decode(existing_data)
-        .map_err(|_| ValueError::new_err("bad ciphertext"))?;
+        let cipher_bytes = general_purpose::STANDARD.decode(existing_data)
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "bad ciphertext"))?;
 
         let cipher = XChaCha20Poly1305::new(Key::from_slice(&key));
 
@@ -58,8 +57,8 @@ fn pg1_startup(mpass: &str, storage_path: &str) ->Result<String> {
     }
 }
 
-fn unlock_vault() -> Result<String> {
-    let storage_path = SPATH.lock().unwrap().as_ref().ok_or_else(|| ValueError::new_err("storage path not set"))?.clone();
+pub fn unlock_vault() -> io::Result<String> {
+    let storage_path = SPATH.lock().unwrap().as_ref().ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "storage path not set"))?.clone();
     let storage_content = fs::read_to_string(&storage_path)
         .unwrap_or_else(|_| "{}".to_string());
 
@@ -68,11 +67,11 @@ fn unlock_vault() -> Result<String> {
 
     let salt = vault["kdf_salt"]
         .as_str()
-        .ok_or_else(|| ValueError::new_err("vault missing kdf_salt"))?
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "vault missing kdf_salt"))?
         .to_string();
 
-    let pass = PASSWORD.lock().unwrap().as_ref().ok_or_else(|| ValueError::new_err("password not set"))?.clone();
-    let key = get_key(pass.clone(), salt.clone())?;
+    let pass = PASSWORD.lock().unwrap().as_ref().ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "password not set"))?.clone();
+    let key = get_key(pass.clone(), salt.clone()).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
     let mut key_guard = KEY.write().unwrap();
     *key_guard = key;
@@ -81,21 +80,21 @@ fn unlock_vault() -> Result<String> {
     if let Some(existing_data) = vault.get("ciphertext").and_then(|v| v.as_str()) {
         let nonce_b64 = vault.get("nonce")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| ValueError::new_err("vault missing nonce"))?;
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "vault missing nonce"))?;
         let nonce_bytes = general_purpose::STANDARD
             .decode(nonce_b64)
-            .map_err(|_| ValueError::new_err("bad nonce"))?;
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "bad nonce"))?;
         let xnonce = XNonce::from_slice(&nonce_bytes);
 
         let plaintext = if let Some(cipher_b64) = vault["ciphertext"].as_str().and_then(|v| Some(v)) {
-            let cipher_bytes = base64::decode(cipher_b64).map_err(|_| ValueError::new_err("bad ciphertext"))?;
+            let cipher_bytes = general_purpose::STANDARD.decode(cipher_b64).map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "bad ciphertext"))?;
 
             let cipher = XChaCha20Poly1305::new(Key::from_slice(&key));
             let pt = cipher
                 .decrypt(&xnonce, cipher_bytes.as_ref())
-                .map_err(|_| ValueError::new_err("decryption failed"))?;
+                .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "decryption failed"))?;
             String::from_utf8(pt)
-                .map_err(|_| ValueError::new_err("plaintext not UTF-8"))?
+                .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "plaintext not UTF-8"))?
         } else {
             String::new()
         };
@@ -109,7 +108,7 @@ fn unlock_vault() -> Result<String> {
     Ok(return_txt)
 }
 
-fn lock_vault() ->Result<String> {
+pub fn lock_vault() -> io::Result<String> {
     let mut map_guard = PASSWORD_MAP.write().unwrap();
     let storage_path = SPATH.lock().unwrap().as_ref().unwrap().clone();
     let storage_content = fs::read_to_string(&storage_path)
@@ -120,42 +119,41 @@ fn lock_vault() ->Result<String> {
     let cipher = XChaCha20Poly1305::new(Key::from_slice(&*key_guard));
     let new_nonce = generate_nonce();
     let new_xnonce = XNonce::from_slice(&new_nonce);
-    vault["nonce"] = serde_json::Value::String(base64::encode(&new_nonce));
+    vault["nonce"] = serde_json::Value::String(general_purpose::STANDARD.encode(&new_nonce));
     let new_ciphertext = cipher.encrypt(new_xnonce, serde_json::to_string(&*map_guard).unwrap().as_bytes()).unwrap();
-    let new_ciphertext_b64 = base64::encode(&new_ciphertext);
+    let new_ciphertext_b64 = general_purpose::STANDARD.encode(&new_ciphertext);
     vault["ciphertext"] = serde_json::Value::String(new_ciphertext_b64);
     let json_string = serde_json::to_string_pretty(&vault).unwrap();
     fs::write(&storage_path, json_string).unwrap();
     Ok("ok".to_string())
 }
 
-fn add_password(user: &str, pass: &str) -> Result<String> {
+pub fn add_password(user: &str, pass: &str) -> io::Result<String> {
     let mut map = PASSWORD_MAP.write().unwrap();
     map.insert(user.to_string(), Value::String(pass.to_string()));
     let return_txt = serde_json::to_string_pretty(&*map).unwrap(); 
     Ok(return_txt)
 }
 
-fn print_map() -> Result<String> {
+pub fn print_map() -> io::Result<String> {
     let map_guard = PASSWORD_MAP.read().unwrap();
     let return_txt = serde_json::to_string_pretty(&*map_guard).unwrap(); 
     Ok(return_txt)
 }
 
-fn delete(user: &str) -> Result<()> { 
+pub fn delete(user: &str) -> io::Result<()> { 
     let mut map = PASSWORD_MAP.write().unwrap();
     map.remove(user);
-    let return_txt = serde_json::to_string_pretty(&*map).unwrap();
     Ok(())
 }
 
-fn generate_nonce() -> Vec<u8> {
+pub fn generate_nonce() -> Vec<u8> {
     let mut nonce = [0u8; 24];
     rand::thread_rng().fill_bytes(&mut nonce);
     nonce.to_vec()
 }
 
- fn generate_salt(length: usize) -> String {
+pub fn generate_salt(length: usize) -> String {
     let salt_bytes: Vec<u8> = rand::thread_rng()
         .sample_iter(&rand::distributions::Standard)
         .take(length)
@@ -163,10 +161,11 @@ fn generate_nonce() -> Vec<u8> {
     return general_purpose::STANDARD.encode(&salt_bytes);
 }
 
-fn get_key(arg_mpass: String, arg_salt: String) -> Result<[u8; 32], Err> {
+pub fn get_key(arg_mpass: String, arg_salt: String) -> io::Result<[u8; 32]> {
     let mut key = [0u8; 32];
     let params = Params::new(65536, 3, 1, None).expect("Invalid Argon2 parameters");
     let argon2 = Argon2::new(argon2::Algorithm::Argon2id, argon2::Version::V0x13, params);
-    argon2.hash_password_into(arg_mpass.as_bytes(), arg_salt.as_bytes(), &mut key).or_else(|_| Err(ValueError::new_err("decryption failed")))?;
+    argon2.hash_password_into(arg_mpass.as_bytes(), arg_salt.as_bytes(), &mut key)
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e.to_string()))?;
     return Ok(key);
 }
