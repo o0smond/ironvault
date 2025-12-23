@@ -37,7 +37,7 @@ enum screen {
 async fn main() {
     let mut txt_input = TextInput::new(0.0, 0.0, 300.0, 40.0, 25.0);
     let font = load_ttf_font("assets/CaviarDreams_Bold.ttf").await.unwrap();
-    let mut lbl_out = Label::new("Welcome to password manager! Please enter your password, or what\nyou would like it to be if this is your first time using the software.", 0.0, 0.0, 15);
+    let mut lbl_hello = Label::new("Welcome to password manager! Please enter your password, or what\nyou would like it to be if this is your first time using the software.", 0.0, 0.0, 15);
     let mut btn_ok = TextButton::new(
         0.0,
         0.0,
@@ -92,35 +92,78 @@ async fn main() {
         MAGENTA,
         20
     );
+    let mut lbl_out = Label::new("hello",250.0,25.0,12);
+    lbl_out.with_colors(WHITE, Some(WHITE)).with_font(font.clone());
     let mut screen = screen::Login;
+
+    fn message_box(w:f32, h:f32, msg:String, btnmsg1:String, btnmsg2:String,bkgclr:Color) -> String {
+        let mut lbl_bkgrnd = Label::new(msg, (w-300.0)/2.0, (h-200.0)/2.0, 20);
+        let mut txt_input_msg = TextInput::new((w-200.0)/2.0, ((h-50.0)/2.0)+25.0, 200.0, 50.0, 12.0);
+        let mut btn_ok_msg = TextButton::new(
+            ((w-100.0)/2.0)-100.0,
+            ((h-50.0)/2.0)-50.0,
+            100.0,
+            50.0,
+            btnmsg1,
+            WHITE,
+            GREEN,
+            10
+        );
+        let mut btn_exit_msg = TextButton::new(
+            ((w-100.0)/2.0)+100.0,
+            ((h-50.0)/2.0)-50.0,
+            100.0,
+            50.0,
+            btnmsg2,
+            WHITE,
+            RED,
+            10
+        );
+
+        lbl_bkgrnd.with_fixed_size(300.0,200.0).with_colors(bkgclr, Some(bkgclr)).draw();
+        txt_input_msg.draw();
+        if btn_ok_msg.click() {
+            let input_msg = txt_input_msg.get_text();
+            if input_msg != ""{
+                return input_msg
+            } else {
+                return "rereun".to_string()
+            }
+        } else if btn_exit_msg.click() {
+            return "close".to_string()
+        }
+        return String::new()
+    }
+
     loop {
         let w = screen_width();
         let h = screen_height();
 
-        lbl_out.set_position((w-500.0)*0.5, (h-37.5)*0.125);
+        lbl_hello.set_position((w-500.0)*0.5, (h-37.5)*0.125);
         txt_input.set_position((w-300.0)*0.5, (h-50.0)*0.322);
         btn_ok.update_position((w-200.0)*0.5, (h-50.0)*0.68,Some(200.0),Some(50.0));
+        lbl_out.with_fixed_size((w-300.0), (h-25.0));
 
         match screen {
             screen::Login => {
                 clear_background(Color::from_rgba(44, 112, 171, 0));
                 draw_grid(50.0, BLACK);
 
-                lbl_out.with_colors(WHITE, Some(MAROON)).with_font(font.clone());
-                lbl_out.draw();
+                lbl_hello.with_colors(WHITE, Some(MAROON)).with_font(font.clone());
+                lbl_hello.draw();
 
                 btn_ok.with_font(font.clone()).with_round(10.0);
                 if btn_ok.click() {
                     let mpass = txt_input.get_text();
                     if mpass == "" {
-                        lbl_out.set_text("Please enter a password");
+                        lbl_hello.set_text("Please enter a password");
                     } else {
                         let rmsg = vault_core::pg1_startup(&mpass, "src/modules/vault_core/storage.json").unwrap();
                         if rmsg == "ok" {
                             screen = screen::Menu;
                             vault_core::unlock_vault().unwrap();
                         } else {
-                            lbl_out.set_text(rmsg);
+                            lbl_hello.set_text(rmsg);
                         }
                     }
                     screen = screen::Menu;
@@ -132,6 +175,7 @@ async fn main() {
             screen::Menu => {
                 clear_background(Color::from_rgba(44, 112, 171, 0));
                 draw_grid(50.0, BLACK);
+                lbl_out.set_text(vault_core::print_map().unwrap());
                 btn_add
                     .with_font(font.clone())
                     .with_round(10.0);
@@ -144,8 +188,9 @@ async fn main() {
                 btn_exit
                     .with_font(font.clone())
                     .with_round(10.0);
+                lbl_out.draw();
                 if btn_add.click() {
-                    {}
+                    let user = message_box(w, h, "Input your username".to_string(), "OK".to_string(), "Cancel".to_string(), BEIGE);
                 }
                 if btn_e_r.click() {
                     {}
