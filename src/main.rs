@@ -31,10 +31,14 @@ fn window_conf() -> Conf {
 enum screen {
     Login,
     Menu,
+    Popup,
 }
 
 #[macroquad::main(window_conf)]
 async fn main() {
+    let mut pop_type = String::new();
+    let mut pop_input = String::new();
+
     let mut txt_input = TextInput::new(0.0, 0.0, 300.0, 40.0, 25.0);
     let font = load_ttf_font("assets/CaviarDreams_Bold.ttf").await.unwrap();
     let mut lbl_hello = Label::new("Welcome to password manager! Please enter your password, or what\nyou would like it to be if this is your first time using the software.", 0.0, 0.0, 15);
@@ -96,44 +100,28 @@ async fn main() {
     lbl_out.with_colors(WHITE, Some(WHITE)).with_font(font.clone());
     let mut screen = screen::Login;
 
-    fn message_box(w:f32, h:f32, msg:String, btnmsg1:String, btnmsg2:String,bkgclr:Color) -> String {
-        let mut lbl_bkgrnd = Label::new(msg, (w-300.0)/2.0, (h-200.0)/2.0, 20);
-        let mut txt_input_msg = TextInput::new((w-200.0)/2.0, ((h-50.0)/2.0)+25.0, 200.0, 50.0, 12.0);
-        let mut btn_ok_msg = TextButton::new(
-            ((w-100.0)/2.0)-100.0,
-            ((h-50.0)/2.0)-50.0,
-            100.0,
-            50.0,
-            btnmsg1,
-            WHITE,
-            GREEN,
-            10
-        );
-        let mut btn_exit_msg = TextButton::new(
-            ((w-100.0)/2.0)+100.0,
-            ((h-50.0)/2.0)-50.0,
-            100.0,
-            50.0,
-            btnmsg2,
-            WHITE,
-            RED,
-            10
-        );
-
-        lbl_bkgrnd.with_fixed_size(300.0,200.0).with_colors(bkgclr, Some(bkgclr)).draw();
-        txt_input_msg.draw();
-        if btn_ok_msg.click() {
-            let input_msg = txt_input_msg.get_text();
-            if input_msg != ""{
-                return input_msg
-            } else {
-                return "rereun".to_string()
-            }
-        } else if btn_exit_msg.click() {
-            return "close".to_string()
-        }
-        return String::new()
-    }
+    let mut txt_input_msg = TextInput::new(0.0, 0.0, 200.0, 50.0, 12.0);
+    let mut lbl_bkgrnd = Label::new("", 0.0,0.0, 20);
+    let mut btn_ok_msg = TextButton::new(
+        0.0,
+        0.0,
+        100.0,
+        50.0,
+        "OK",
+        WHITE,
+        GREEN,
+        20
+    );
+    let mut btn_exit_msg = TextButton::new(
+        0.0,
+        0.0,
+        100.0,
+        50.0,
+        "Cancel",
+        WHITE,
+        RED,
+        10
+    );
 
     loop {
         let w = screen_width();
@@ -166,7 +154,6 @@ async fn main() {
                             lbl_hello.set_text(rmsg);
                         }
                     }
-                    screen = screen::Menu;
                 }
 
                 txt_input.with_font(font.clone()).draw();
@@ -190,7 +177,8 @@ async fn main() {
                     .with_round(10.0);
                 lbl_out.draw();
                 if btn_add.click() {
-                    let user = message_box(w, h, "Input your username".to_string(), "OK".to_string(), "Cancel".to_string(), BEIGE);
+                    pop_type = "username".to_string();
+                    screen = screen::Popup;
                 }
                 if btn_e_r.click() {
                     {}
@@ -200,6 +188,26 @@ async fn main() {
                 }
                 if btn_exit.click() {
                     {}
+                }
+            }
+
+            screen::Popup => {
+                clear_background(WHITE);
+                txt_input_msg.set_position((w-200.0)/2.0, ((h-50.0)/2.0)+25.0).draw();
+                lbl_bkgrnd.set_position((w-300.0)/2.0, (h-200.0)/2.0).set_text(format!("Input your {}", pop_type)).with_fixed_size(300.0,200.0).with_colors(BEIGE, Some(BEIGE)).draw();
+                btn_ok_msg.update_position(((w-100.0)/2.0)-100.0,((h-50.0)/2.0)-50.0,Some(100.0),Some(50.0));
+                btn_exit_msg.update_position(((w-100.0)/2.0)-100.0,((h-50.0)/2.0)+50.0,Some(100.0),Some(50.0));
+                pop_input = txt_input.get_text();
+                if btn_ok_msg.click() {
+                    if pop_input == "" {
+                        {}
+                    } else {
+                        screen = screen::Menu;
+                    }
+                }
+                if btn_exit_msg.click() {
+                    pop_input = String::new();
+                    screen = screen::Menu;
                 }
             }
         }
