@@ -38,6 +38,8 @@ enum screen {
 async fn main() {
     let mut pop_type = String::new();
     let mut pop_input = String::new();
+    let mut temp_user = String::new();
+    let mut temp_pass = String::new();
 
     let mut txt_input = TextInput::new(0.0, 0.0, 300.0, 40.0, 25.0);
     let font = load_ttf_font("assets/CaviarDreams_Bold.ttf").await.unwrap();
@@ -96,21 +98,21 @@ async fn main() {
         MAGENTA,
         20
     );
-    let mut lbl_out = Label::new("hello",250.0,25.0,12);
-    lbl_out.with_colors(WHITE, Some(WHITE)).with_font(font.clone());
+    let mut lbl_out = Label::new("hello",250.0,25.0,25);
+    lbl_out.with_colors(BLACK, Some(WHITE)).with_font(font.clone());
     let mut screen = screen::Login;
 
-    let mut txt_input_msg = TextInput::new(0.0, 0.0, 200.0, 50.0, 12.0);
+    let mut txt_input_msg = TextInput::new(0.0, 0.0, 200.0, 50.0, 25.0);
     let mut lbl_bkgrnd = Label::new("", 0.0,0.0, 20);
     let mut btn_ok_msg = TextButton::new(
-        0.0,
+        0.0, 
         0.0,
         100.0,
         50.0,
         "OK",
         WHITE,
         GREEN,
-        20
+        30
     );
     let mut btn_exit_msg = TextButton::new(
         0.0,
@@ -120,7 +122,7 @@ async fn main() {
         "Cancel",
         WHITE,
         RED,
-        10
+        20
     );
 
     loop {
@@ -130,7 +132,7 @@ async fn main() {
         lbl_hello.set_position((w-500.0)*0.5, (h-37.5)*0.125);
         txt_input.set_position((w-300.0)*0.5, (h-50.0)*0.322);
         btn_ok.update_position((w-200.0)*0.5, (h-50.0)*0.68,Some(200.0),Some(50.0));
-        lbl_out.with_fixed_size((w-300.0), (h-25.0));
+        lbl_out.with_fixed_size(w-300.0, h-25.0);
 
         match screen {
             screen::Login => {
@@ -184,25 +186,47 @@ async fn main() {
                     {}
                 }
                 if btn_save.click() {
-                    {}
+                    let rmsg = vault_core::lock_vault().unwrap();
+                    if rmsg == "ok".to_string() {
+                        println!("Saved")
+                    } else {
+                        println!("save failed")
+                    }
                 }
                 if btn_exit.click() {
-                    {}
+                    let rmsg = vault_core::lock_vault().unwrap();
+                    if rmsg == "ok".to_string() {
+                        println!("Saved");
+                        break
+                    } else {
+                        println!("save failed")
+                    }
                 }
             }
 
             screen::Popup => {
                 clear_background(WHITE);
-                txt_input_msg.set_position((w-200.0)/2.0, ((h-50.0)/2.0)+25.0).draw();
-                lbl_bkgrnd.set_position((w-300.0)/2.0, (h-200.0)/2.0).set_text(format!("Input your {}", pop_type)).with_fixed_size(300.0,200.0).with_colors(BEIGE, Some(BEIGE)).draw();
-                btn_ok_msg.update_position(((w-100.0)/2.0)-100.0,((h-50.0)/2.0)-50.0,Some(100.0),Some(50.0));
-                btn_exit_msg.update_position(((w-100.0)/2.0)-100.0,((h-50.0)/2.0)+50.0,Some(100.0),Some(50.0));
-                pop_input = txt_input.get_text();
+                lbl_bkgrnd.set_position((w-300.0)/2.0, (h-200.0)/2.0).set_text(format!("Input your {}", pop_type)).with_fixed_size(300.0,200.0).with_colors(BLACK, Some(BEIGE)).draw();
+                btn_ok_msg.update_position(((w-100.0)/2.0)+90.0,((h-50.0)/2.0)+50.0,Some(100.0),Some(50.0)).with_text_color(BLACK);
+                btn_exit_msg.update_position(((w-100.0)/2.0)-100.0,((h-50.0)/2.0)+50.0,Some(100.0),Some(50.0)).with_text_color(BLACK);
+                txt_input_msg.set_position((w-200.0)/2.0, ((h-50.0)/2.0)-25.0).with_colors(BLACK, BLACK, WHITE, BLACK).draw();
                 if btn_ok_msg.click() {
+                    pop_input = txt_input_msg.get_text();
                     if pop_input == "" {
-                        {}
+                        pop_input = String::new();
                     } else {
-                        screen = screen::Menu;
+                        if pop_type == "username".to_string() {
+                            temp_user = pop_input;
+                            pop_type = "password".to_string();
+                        } else if pop_type == "password".to_string() {
+                            temp_pass = pop_input;
+                            vault_core::add_password(&temp_user, &temp_pass);
+                            pop_type = String::new();
+                            temp_user = String::new();
+                            temp_pass = String::new();
+                            screen = screen::Menu;
+                        }
+                        txt_input_msg.set_text("");
                     }
                 }
                 if btn_exit_msg.click() {
