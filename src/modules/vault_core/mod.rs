@@ -147,6 +147,12 @@ pub fn delete(user: &str) -> io::Result<()> {
     Ok(())
 }
 
+pub fn check_entry(user: &str) -> Result<bool, ()> {
+    let map = PASSWORD_MAP.write().unwrap();
+    let result = map.contains_key(user);
+    Ok(result)
+}
+
 pub fn generate_nonce() -> Vec<u8> {
     let mut nonce = [0u8; 24];
     rand::thread_rng().fill_bytes(&mut nonce);

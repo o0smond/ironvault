@@ -1,13 +1,13 @@
 {
   "cipher": "xchacha20poly1305",
-  "ciphertext": "7cFdIz+wG5EqZDTtoj40i1tuW8o9CSEqND3bPyiio6ZL",
+  "ciphertext": null,
   "kdf": "argon2id",
   "kdf_params": {
     "lanes": 1,
     "mem": 65536,
     "time": 3
   },
-  "kdf_salt": "Tnp1Q1QY9i91wd+4wEJCUg==",
-  "nonce": "nVEr6UaFqoe4daHHCCPnqqQ2K1ht+UJC",
+  "kdf_salt": null,
+  "nonce": null,
   "version": 1
 }

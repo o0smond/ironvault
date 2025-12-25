@@ -7,7 +7,6 @@ Program Details: Rust GUI for password manager
 mod modules;
 
 use macroquad::{color, prelude::*};
-use modules::grid::draw_grid;
 use crate::modules::label::Label;
 use crate::modules::text_button::TextButton;
 use crate::modules::text_input::TextInput;
@@ -40,6 +39,7 @@ async fn main() {
     let mut pop_input = String::new();
     let mut temp_user = String::new();
     let mut temp_pass = String::new();
+    let mut temp_euser = String::new();
 
     let mut txt_input = TextInput::new(0.0, 0.0, 300.0, 40.0, 25.0);
     let font = load_ttf_font("assets/CaviarDreams_Bold.ttf").await.unwrap();
@@ -114,6 +114,16 @@ async fn main() {
         GREEN,
         30
     );
+    let mut btn_rem_msg = TextButton::new(
+        0.0, 
+        0.0,
+        100.0,
+        50.0,
+        "Remove",
+        WHITE,
+        RED,
+        30
+    );
     let mut btn_exit_msg = TextButton::new(
         0.0,
         0.0,
@@ -137,7 +147,6 @@ async fn main() {
         match screen {
             screen::Login => {
                 clear_background(Color::from_rgba(44, 112, 171, 0));
-                draw_grid(50.0, BLACK);
 
                 lbl_hello.with_colors(WHITE, Some(MAROON)).with_font(font.clone());
                 lbl_hello.draw();
@@ -163,7 +172,6 @@ async fn main() {
 
             screen::Menu => {
                 clear_background(Color::from_rgba(44, 112, 171, 0));
-                draw_grid(50.0, BLACK);
                 lbl_out.set_text(vault_core::print_map().unwrap());
                 btn_add
                     .with_font(font.clone())
@@ -183,7 +191,8 @@ async fn main() {
                     screen = screen::Popup;
                 }
                 if btn_e_r.click() {
-                    {}
+                    pop_type = "e_r".to_string();
+                    screen = screen::Popup;
                 }
                 if btn_save.click() {
                     let rmsg = vault_core::lock_vault().unwrap();
@@ -206,36 +215,106 @@ async fn main() {
 
             screen::Popup => {
                 clear_background(WHITE);
-                lbl_bkgrnd.set_position((w-300.0)/2.0, (h-200.0)/2.0).set_text(format!("Input your {}", pop_type)).with_fixed_size(300.0,200.0).with_colors(BLACK, Some(BEIGE)).draw();
+                lbl_bkgrnd.set_position((w-300.0)/2.0, (h-200.0)/2.0).with_fixed_size(300.0,200.0).with_colors(BLACK, Some(BEIGE)).draw();
                 btn_ok_msg.update_position(((w-100.0)/2.0)+90.0,((h-50.0)/2.0)+50.0,Some(100.0),Some(50.0)).with_text_color(BLACK);
                 btn_exit_msg.update_position(((w-100.0)/2.0)-100.0,((h-50.0)/2.0)+50.0,Some(100.0),Some(50.0)).with_text_color(BLACK);
                 txt_input_msg.set_position((w-200.0)/2.0, ((h-50.0)/2.0)-25.0).with_colors(BLACK, BLACK, WHITE, BLACK).draw();
-                if btn_ok_msg.click() {
-                    pop_input = txt_input_msg.get_text();
-                    if pop_input == "" {
+                if pop_type == "username".to_string() || pop_type == "password".to_string() {
+                    lbl_bkgrnd.set_text(format!("Input your {}", pop_type));
+                    btn_ok_msg.set_text("OK");
+                    if btn_ok_msg.click() {
+                        pop_input = txt_input_msg.get_text();
+                        let exist_state = vault_core::check_entry(&pop_input).unwrap();
+                        if pop_input == "" {
+                            pop_input = String::new();
+                            txt_input_msg.set_text("Blank input");
+                        } else if exist_state == true {
+                            txt_input_msg.set_text("Entry already exists");
+                        }else {
+                            if pop_type == "username".to_string() {
+                                temp_user = pop_input;
+                                pop_type = "password".to_string();
+                            } else if pop_type == "password".to_string() {
+                                temp_pass = pop_input;
+                                vault_core::add_password(&temp_user, &temp_pass);
+                                pop_type = String::new();
+                                temp_user = String::new();
+                                temp_pass = String::new();
+                                screen = screen::Menu;
+                            }
+                            txt_input_msg.set_text("");
+                        }
+                    }
+                    if btn_exit_msg.click() {
                         pop_input = String::new();
-                    } else {
-                        if pop_type == "username".to_string() {
-                            temp_user = pop_input;
-                            pop_type = "password".to_string();
-                        } else if pop_type == "password".to_string() {
+                        screen = screen::Menu;
+                    }
+                } else {
+                    lbl_bkgrnd.set_text(format!("Edit or Remove?"));
+                    btn_rem_msg.update_position(((w-100.0)/2.0),((h-50.0)/2.0)+50.0,Some(100.0),Some(50.0)).with_text_color(BLACK);
+                    btn_ok_msg.set_text("Edit");
+
+                    if pop_type == "new_user".to_string() {
+                        lbl_bkgrnd.set_text("New Username?");
+                        btn_ok_msg.set_text("OK");
+                        btn_rem_msg.update_position(0.0, 0.0, Some(0.0), Some(0.0));
+                    } else if pop_type == "new_pass".to_string() {
+                        lbl_bkgrnd.set_text("New Password?");
+                        btn_ok_msg.set_text("OK");
+                        btn_rem_msg.update_position(0.0, 0.0, Some(0.0), Some(0.0));
+                    }
+                    
+                    if btn_ok_msg.click() {
+                        pop_input = txt_input_msg.get_text();
+                        let ent_existstate = vault_core::check_entry(&pop_input).unwrap();
+
+                        if ent_existstate == false && pop_type != "new_user".to_string() && pop_type != "new_pass".to_string()  {
+                            pop_input = String::new();
+                            txt_input_msg.set_text("Entry does not exist");
+                        } else if pop_type != "new_user".to_string() && pop_type != "new_pass".to_string() {
+                            txt_input_msg.set_text("");
+                            temp_euser = pop_input;
+                            pop_type = "new_user".to_string();
+                        } else if pop_type == "new_user".to_string() && pop_input != "" {
+                            temp_user = pop_input.to_string();
+                            pop_type = "new_pass".to_string();
+                            txt_input_msg.set_text("");
+                        } else if pop_type == "new_pass".to_string() && pop_input != ""{
                             temp_pass = pop_input;
+                            vault_core::delete(&temp_euser);
                             vault_core::add_password(&temp_user, &temp_pass);
                             pop_type = String::new();
                             temp_user = String::new();
                             temp_pass = String::new();
+                            txt_input_msg.set_text("");
                             screen = screen::Menu;
+                        } else {
+                            txt_input_msg.set_text("Blank input");
                         }
+                    }
+                    if btn_rem_msg.click() {
+                        pop_input = txt_input_msg.get_text();
+                        let exist_state = vault_core::check_entry(&pop_input).unwrap();
+                        if pop_input == "".to_string() {
+                            txt_input_msg.set_text("Blank input");
+                        } else if exist_state == false {
+                            txt_input_msg.set_text("Entry nonexistant");
+                        }else {
+                            vault_core::delete(&pop_input);
+                            screen = screen::Menu;
+                            txt_input_msg.set_text("");
+                        }
+                        pop_input = String::new();
+                    }
+                    if btn_exit_msg.click() {
                         txt_input_msg.set_text("");
+                        pop_input = String::new();
+                        screen = screen::Menu;
                     }
                 }
-                if btn_exit_msg.click() {
-                    pop_input = String::new();
-                    screen = screen::Menu;
-                }
             }
-        }
 
+        }
         next_frame().await;
     }
 }
