@@ -19,7 +19,7 @@ use crate::modules::vault_core;
 /// Set up window settings before the app runs
 fn window_conf() -> Conf {
     Conf {
-        window_title: "password_manager".to_string(),
+        window_title: "IronVault".to_string(),
         window_width: 850,
         window_height: 600,
         fullscreen: false,
