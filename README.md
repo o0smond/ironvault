@@ -40,9 +40,8 @@ This codebase is broken into two large parts, consisting of:
 ## Security Architecture
 
 1. **The KDF: Argon2id**
-   To prevent brute-force attacks, I have chosen Argon2id as my KDF.
 
-   **Why:** It is the winner of the Password Hashing Competition and is very resistant to GPU cracking side-channel attacks
+   **Why:** It is the winner of the Password Hashing Competition and is very resistant to GPU cracking side-channel attacks, as well as brute force attacks.
 2. **The Encryption: ChaCha20-Poly1305**
    
    **Why:** Unlike the global AES, ChaCha20 is more resistant to cache-timing attacks.
