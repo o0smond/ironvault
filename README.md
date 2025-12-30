@@ -75,6 +75,6 @@ As this project's main purpose was learning, I have learned many, many things bo
 
 1. **Experience with modern cryptography:** This project demanded knowledge of modern cryptographic techniques such as salt and nonce generation, key derivation, and proper encryption and handling of the vault data.
    
-2. **Experience with Rust:** As is becoming more evident in recent years, **Rust is the future**, due to its memory safe properties, along with other benefits. Getting hands on experience with this language which sits at the forefront of modern technonlogy has given me invaluable experience which has set me up nicely for a future in tech.
+2. **Experience with Rust:** As is becoming more evident in recent years, **Rust is the future**, due to its memory safe properties, along with other benefits. Getting hands on experience with this language which sits at the forefront of modern technonlogy has given me invaluable experience and has set me up nicely for a future in tech.
    
-3. **Experience with UI Design** Clean, modern GUIs are essential for any truly user-freindly peice of software. Getting experience with the Macroquad Engine has given me skills in an immediate mode GUI system compared to my main comfort with PyQT's retained mode GUI system.
+3. **Experience with UI Design** Clean, modern GUIs are essential for any truly user-freindly peice of software. Getting experience with the Macroquad Engine has given me skills in an immediate mode GUI system in contrast to my experience with PyQT's retained mode GUI system.
