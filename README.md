@@ -1,6 +1,6 @@
 # IronVault
 
-A visually driven, security focused password manager build entirely in Rust.
+A visually driven, security focused password manager built entirely in Rust.
 
 This program utilizes the Macroquad engine to render a hardware-accelerated, lightweight
 GUI that proves modern security software can work well and look good too. Built with a focus
