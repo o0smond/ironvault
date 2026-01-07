@@ -21,7 +21,6 @@ use chacha20poly1305::XChaCha20Poly1305; //uses chacha20poly1305 as a cypher
 use chacha20poly1305::{Key, XNonce};
 use chacha20poly1305::aead::{Aead, NewAead};
 use once_cell::sync::Lazy;
-use zeroize::Zeroize;
 
 /*
 This vault self contains all of its data, and simply takes gui input on what to do.
