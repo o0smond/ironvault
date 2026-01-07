@@ -14,6 +14,7 @@ use crate::modules::label::Label;
 use crate::modules::text_button::TextButton;
 use crate::modules::text_input::TextInput;
 use crate::modules::vault_core;
+use zeroize::Zeroize;
 
 
 /// Set up window settings before the app runs
@@ -40,9 +41,21 @@ enum Screen {
 #[macroquad::main(window_conf)]
 async fn main() {
     let mut pop_type = String::new(); // defines the type of popup to be displayed
+
+    #[derive(Zeroize)]
+    #[zeroize(drop)]
     let mut pop_input: Option<String> = None; // defines the input for the popup, option to avoid warnings
+
+    #[derive(Zeroize)]
+    #[zeroize(drop)]
     let mut temp_user = String::new(); // temporary storage for user input
+
+    #[derive(Zeroize)]
+    #[zeroize(drop)]
     let mut temp_pass: Option<String> = None; // temporary storage for user input, option to avoid warnings
+
+    #[derive(Zeroize)]
+    #[zeroize(drop)]
     let mut temp_euser = String::new(); // temporary storage for user input in the edit popup
 
     //Defining all the objects for all the screens. Note if you see objects placed at 0.0 they are to be defined later.
@@ -162,6 +175,8 @@ async fn main() {
 
                 btn_ok.with_font(font.clone()).with_round(10.0);
                 if btn_ok.click() {
+                    #[derive(Zeroize)]
+                    #[zeroize(drop)]
                     let mpass = txt_input.get_text();
                     if mpass == "" {
                         lbl_hello.set_text("Please enter a password");
@@ -321,6 +336,8 @@ async fn main() {
 
                     //If user clicks "remove"
                     if btn_rem_msg.click() {
+                        #[derive(Zeroize)]
+                        #[zeroize(drop)]
                         let input_text = txt_input_msg.get_text();
                         let exist_state = vault_core::check_entry(&input_text).unwrap();
                         

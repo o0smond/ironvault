@@ -21,11 +21,13 @@ use chacha20poly1305::XChaCha20Poly1305; //uses chacha20poly1305 as a cypher
 use chacha20poly1305::{Key, XNonce};
 use chacha20poly1305::aead::{Aead, NewAead};
 use once_cell::sync::Lazy;
+use zeroize::Zeroize;
 
 /*
 This vault self contains all of its data, and simply takes gui input on what to do.
 These are all the variables that are used and stored in this vault manager:
 */
+
 static ATTEMPTS: AtomicUsize = AtomicUsize::new(0); //for the error message on the login screen
 static PASSWORD: Mutex<Option<String>> = Mutex::new(None); //the master password for key generation
 static SPATH: Mutex<Option<String>> = Mutex::new(None); //the path to the storage file, a bit of a leftover from the PyQT version this was adapted from
