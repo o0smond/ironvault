@@ -1,0 +1,45 @@
+@import url('https://fonts.googleapis.com/css2?family=Bitcount+Prop+Single:wght@100..900&family=Ramaraja&display=swap');
+
+body {
+    background-color: antiquewhite;
+}
+
+h1 {
+    font-family: 'Bitcount Prop Single', sans-serif;
+    font-size: 3rem;
+}
+
+h2, label, button {
+    font-family: 'Ramaraja', sans-serif;
+}
+
+.nbar {
+    background-color: orange;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+}
+
+.login-div {
+    background-color: whitesmoke;
+    padding: 1% 1% 1% 1%;
+    margin-top: 2%;
+}
+
+.loginfeilds-wrapper-div, .loginfeilds-div {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.loginfeilds-wrapper-div {
+    gap: 5px;
+    align-items: center;
+}
+
+.go {
+    width: 20%;
+    font-size: 1.3rem;
+    background-color: green;
+}
