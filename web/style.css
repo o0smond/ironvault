@@ -9,7 +9,7 @@ h1 {
     font-size: 3rem;
 }
 
-h2, label, button {
+h2, label, button, h3 {
     font-family: 'Ramaraja', sans-serif;
 }
 
@@ -42,4 +42,8 @@ h2, label, button {
     width: 20%;
     font-size: 1.3rem;
     background-color: green;
+}
+
+.loginalert {
+    color: red;
 }
