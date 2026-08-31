@@ -1,0 +1,17 @@
+[package]
+name = "ironvault"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rand = "0.8"
+rand_core = "0.6"
+base64 = "0.21"
+chacha20poly1305 = "0.8"
+chacha20 = "0.8"
+argon2 = "0.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+ureq = { version = "2.9", features = ["json"] }
