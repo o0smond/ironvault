@@ -20,15 +20,24 @@ pub fn main() {
 
 }
 
-pub fn login_check(user: String, pass: String) -> i32 {
+pub async fn login_check(user: String) -> i32 {
     let client = database::create_database_client();
+    let id_err_op = client.fetch_id_by_user::<i32>("ironvault", &user).await;
     
-    // if Ok(client.fetch_id_by_user(ironvault, user)) {
-
-    // }
-
+    if let Ok(id_op) = id_err_op {
+        if let Some(id) = id_op {
+            return id;
+        }
+    }
     return 0;
 }
+
+//Two megafunctions need to be created now, one creating a new vault (database entry with salt, nonce, password hint, etc.),
+//and for people who already have an account that will take username and password and return decrypted cyphertext, or "0" if
+//an error occurs/vault empty. 
+
+//Additionally, functions need to be created that will encrypt and push plaintext to a given user's vault, and
+//other utilities for account deletion/modification, etc.
 
 pub fn create_new_vault() {
 
