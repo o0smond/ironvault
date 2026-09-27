@@ -6,6 +6,7 @@ Program Details: Ironvault Rust WASM backend functions
 
 mod utils;
 use crate::utils::database;
+use crate::utils::database::DatabaseTable;
 use rand::Rng;
 use rand::RngCore;
 use base64::{engine::general_purpose, Engine as _};
@@ -32,14 +33,88 @@ pub async fn login_check(user: String) -> i32 {
     return 0;
 }
 
-//Two megafunctions need to be created now, one creating a new vault (database entry with salt, nonce, password hint, etc.),
-//and for people who already have an account that will take username and password and return decrypted cyphertext, or "0" if
-//an error occurs/vault empty. 
-
+//TODO:
 //Additionally, functions need to be created that will encrypt and push plaintext to a given user's vault, and
 //other utilities for account deletion/modification, etc.
 
-pub fn create_new_vault() {
+pub async fn create_new_vault(username: String, password_hint: String) -> String{
+    let client = database::create_database_client();
+    /*
+    Here, let id=0 so that our cloudflare worker can auto increment an ID for this entry
+    Additionally, the nonce is left empty due to it not being needed for the moment being; it will
+    be generated and written later upon re-encryption and updating of the database.
+    */
+    let vault = DatabaseTable::new(0, username, "".to_string(), generate_salt(16), "".to_string(), password_hint);
+    let insert_err = client.insert_record::<DatabaseTable>("ironvault", &vault).await;
+    if let Err(insert) = insert_err {
+        return format!("{}", insert);  
+    }
+    return "Created".to_string();
+}
+
+
+/*
+    TODO:
+    Currently, encrypt_and_push() is in need of the key, and it would be preferable to avoid key derivation and database pulling twice.
+    Create a function that returns the user DB entry to JS, then another to pass an optionless derived key, that way we can pass everything
+    the fetch_and_decrypt() (Which will just become decrypt) and encrypt_and_push() functions will need to do their job such that info and
+    keys never have to be pulled/derived twice. 
+*/
+
+pub async fn fetch_and_decrypt(id: i32, password: String) -> String {
+    let client = database::create_database_client();
+    let vault_op_err = client.fetch_record_by_id::<DatabaseTable>("ironvault", id as i64).await;
+    let vault: DatabaseTable;
+
+    if let Ok(vault_op) = vault_op_err {
+        if let Some(vault_temp) = vault_op {
+            vault = vault_temp;
+        } else {
+            return format!("{:?}", vault_op);
+        }
+    } else {
+        return format!("{:?}", vault_op_err);
+    }
+
+    if vault.ciphertext.is_empty() {
+        return "".to_string();
+    } else {
+        let nonce_bytes_err = general_purpose::STANDARD.decode(vault.nonce);
+        let xnonce: &XNonce;
+        let Ok(nonce_bytes) = nonce_bytes_err else {
+            return "nonce parsing error".to_string();
+        };
+        xnonce = XNonce::from_slice(&nonce_bytes);
+
+
+        let key_op = get_key(password, vault.kdf_salt);
+        let key: [u8; 32];
+        let Some(key_temp) = key_op else {
+            return "key parsing error".to_string();
+        };
+        key = key_temp;
+
+        let ciphertext_err = general_purpose::STANDARD.decode(vault.ciphertext);
+        let Ok(ciphertext) = ciphertext_err else {
+            return "ciphertext parsing error".to_string();
+        };
+
+        let cipher = XChaCha20Poly1305::new(Key::from_slice(&key));
+        let plaintext_bytes_err = cipher.decrypt(xnonce, ciphertext.as_ref());
+        let Ok(plaintext_bytes) = plaintext_bytes_err else {
+            return "decryption error".to_string();
+        };
+
+        let plaintext_parsed_err = String::from_utf8(plaintext_bytes);
+        let Ok(plaintext) = plaintext_parsed_err else {
+            return "plaintext parsing error".to_string();
+        };
+
+        return plaintext;
+    }
+}
+
+pub fn encrypt_and_push(id: i32, plaintext: String, password: String) {
 
 }
 

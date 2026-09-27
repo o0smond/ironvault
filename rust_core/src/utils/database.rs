@@ -29,6 +29,12 @@ pub struct DatabaseTable {
     pub password_hint: String
 }
 
+impl DatabaseTable {
+    pub fn new(id: i32, username: String, ciphertext: String, kdf_salt: String, nonce: String, password_hint: String) -> Self{
+        DatabaseTable { id, username, ciphertext, kdf_salt, nonce, password_hint }
+    }
+}
+
 #[allow(unused)]
 pub fn create_database_client() -> DatabaseClient {
     DatabaseClient::new(WORKER_URL.to_string())
