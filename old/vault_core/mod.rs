@@ -151,12 +151,24 @@ pub fn lock_vault() -> io::Result<String> {
         .unwrap_or_else(|_| "{}".to_string());
     let mut vault: serde_json::Value = serde_json::from_str(&storage_content).unwrap_or_else(|_| serde_json::json!({}));
     let key_guard = KEY.read().unwrap();
+
+
     let cipher = XChaCha20Poly1305::new(Key::from_slice(&*key_guard)); //Encrypting the plaintext password map
+
+
     let new_nonce = generate_nonce();   //generating new nonce
     let new_xnonce = XNonce::from_slice(&new_nonce); //making nonce usable
+
+
     vault["nonce"] = serde_json::Value::String(general_purpose::STANDARD.encode(&new_nonce));
+
+
     let new_ciphertext = cipher.encrypt(new_xnonce, serde_json::to_string(&*map_guard).unwrap().as_bytes()).unwrap(); //encoding the encypted password map with the new nonce
+
+
     let new_ciphertext_b64 = general_purpose::STANDARD.encode(&new_ciphertext); //encoding the cyphertext in b64 for storage
+
+    
     vault["ciphertext"] = serde_json::Value::String(new_ciphertext_b64);
     let json_string = serde_json::to_string_pretty(&vault).unwrap();
     fs::write(&storage_path, json_string).unwrap(); //writing cyphertext to the vault

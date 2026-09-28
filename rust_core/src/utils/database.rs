@@ -7,8 +7,6 @@ Turso (libSQL) database module for Rust
 use serde::{Deserialize, Serialize};
 #[cfg(not(target_arch = "wasm32"))]
 use ureq;
-#[cfg(target_arch = "wasm32")]
-use macroquad::prelude::next_frame;
 
 // Helper function for serde to skip serializing id when it's 0
 fn is_zero(num: &i32) -> bool {
@@ -95,6 +93,7 @@ impl DatabaseClient {
         async fn send_request(&self, payload: &serde_json::Value) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
             let body = payload.to_string();
             
+            // 1. Native / IDE checking block
             #[cfg(not(target_arch = "wasm32"))]
             {
                 let url = &self.worker_url;
@@ -113,54 +112,25 @@ impl DatabaseClient {
                 return Ok(json);
             }
             
+            // 2. WebAssembly block (used by wasm-pack)
             #[cfg(target_arch = "wasm32")]
             {
-                #[link(wasm_import_module = "env")]
-                extern "C" {
-                    fn mq_db_query(ptr: *const u8, len: usize, url_ptr: *const u8, url_len: usize);
-                    fn mq_db_query_result_len() -> usize;
-                    fn mq_db_query_fill_result(ptr: *mut u8);
-                    fn mq_db_query_clear_result();
+                let response = gloo_net::http::Request::post(&self.worker_url)
+                    .json(payload)
+                    .map_err(|e| format!("JSON payload error: {}", e))?
+                    .send()
+                    .await
+                    .map_err(|e| format!("Network error: {}", e))?;
+
+                if !response.ok() {
+                    let err_body = response.text().await.unwrap_or_default();
+                    return Err(format!("HTTP {} error: {}", response.status(), err_body).into());
                 }
+
+                let json: serde_json::Value = response.json().await
+                    .map_err(|e| format!("Failed to parse JSON response: {}", e))?;
                 
-                let url_bytes = self.worker_url.as_bytes();
-                let json_bytes = body.as_bytes();
-                // Call JS: mq_db_query(ptr, len, url_ptr, url_len)
-                unsafe {
-                    mq_db_query(
-                        json_bytes.as_ptr(),
-                        json_bytes.len(),
-                        url_bytes.as_ptr(),
-                        url_bytes.len(),
-                    );
-                }
-                let mut tries = 0;
-                let max_tries = 100;
-                let mut result_len = 0;
-                while tries < max_tries {
-                    result_len = unsafe { mq_db_query_result_len() };
-                    if result_len > 0 {
-                        break;
-                    }
-                    tries += 1;
-                    next_frame().await;
-                }
-                if result_len == 0 {
-                    return Err("No result from JS db_query (timeout or JS error)".into());
-                }
-                let mut buf = vec![0u8; result_len];
-                unsafe {
-                    mq_db_query_fill_result(buf.as_mut_ptr());
-                    mq_db_query_clear_result();
-                }
-                let text = String::from_utf8(buf).map_err(|e| format!("UTF-8 error: {}", e))?;
-                let json: serde_json::Value = serde_json::from_str(&text)?;
                 return Ok(json);
-            }
-            
-            #[cfg(not(any(target_arch = "wasm32", not(target_arch = "wasm32"))))]
-            {
-                unreachable!("This should never be reached");
             }
         }
     pub fn new(worker_url: String) -> Self {

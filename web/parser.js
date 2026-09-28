@@ -12,6 +12,8 @@ go_button.addEventListener('click', () => {
         warning.textContent = "Missing Username or Password";
         warning_event = true;
     }
+
+    
 });
 
 [user_box, pass_box].forEach(input => {

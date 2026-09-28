@@ -21,6 +21,7 @@ pub fn main() {
 
 }
 
+#[wasm_bindgen]
 pub async fn login_check(user: String) -> i32 {
     let client = database::create_database_client();
     let id_err_op = client.fetch_id_by_user::<i32>("ironvault", &user).await;
@@ -52,16 +53,7 @@ pub async fn create_new_vault(username: String, password_hint: String) -> String
     return "Created".to_string();
 }
 
-
-/*
-    TODO:
-    Currently, encrypt_and_push() is in need of the key, and it would be preferable to avoid key derivation and database pulling twice.
-    Create a function that returns the user DB entry to JS, then another to pass an optionless derived key, that way we can pass everything
-    the fetch_and_decrypt() (Which will just become decrypt) and encrypt_and_push() functions will need to do their job such that info and
-    keys never have to be pulled/derived twice. 
-*/
-
-pub async fn fetch_and_decrypt(id: i32, password: String) -> String {
+pub async fn fetch_db_info(id: i32) -> Vec<String> {
     let client = database::create_database_client();
     let vault_op_err = client.fetch_record_by_id::<DatabaseTable>("ironvault", id as i64).await;
     let vault: DatabaseTable;
@@ -70,31 +62,36 @@ pub async fn fetch_and_decrypt(id: i32, password: String) -> String {
         if let Some(vault_temp) = vault_op {
             vault = vault_temp;
         } else {
-            return format!("{:?}", vault_op);
+            return vec![format!("{:?}", vault_op)];
         }
     } else {
-        return format!("{:?}", vault_op_err);
+        return vec![format!("{:?}", vault_op_err)];
     }
 
-    if vault.ciphertext.is_empty() {
+    vec![format!("{}", id), vault.username, vault.ciphertext, vault.kdf_salt, vault.nonce, vault.password_hint]
+}
+
+pub fn get_unwrapped_key(password: String, salt: String) -> [u8; 32] {
+    let key_op = get_key(password, salt);
+    if let Some(key) = key_op {
+        return key;
+    } else {
+        return [0; 32];
+    }
+}
+
+pub fn decrypt(nonce: String, key: [u8; 32], ciphertext: String) -> String {
+    if ciphertext.is_empty() {
         return "".to_string();
     } else {
-        let nonce_bytes_err = general_purpose::STANDARD.decode(vault.nonce);
+        let nonce_bytes_err = general_purpose::STANDARD.decode(nonce);
         let xnonce: &XNonce;
         let Ok(nonce_bytes) = nonce_bytes_err else {
             return "nonce parsing error".to_string();
         };
         xnonce = XNonce::from_slice(&nonce_bytes);
 
-
-        let key_op = get_key(password, vault.kdf_salt);
-        let key: [u8; 32];
-        let Some(key_temp) = key_op else {
-            return "key parsing error".to_string();
-        };
-        key = key_temp;
-
-        let ciphertext_err = general_purpose::STANDARD.decode(vault.ciphertext);
+        let ciphertext_err = general_purpose::STANDARD.decode(ciphertext);
         let Ok(ciphertext) = ciphertext_err else {
             return "ciphertext parsing error".to_string();
         };
@@ -114,8 +111,34 @@ pub async fn fetch_and_decrypt(id: i32, password: String) -> String {
     }
 }
 
-pub fn encrypt_and_push(id: i32, plaintext: String, password: String) {
+pub async fn encrypt_and_push(id: i32, plaintext: String, key: [u8; 32]) -> String {
+    let client = database::create_database_client();
+    let nonce = generate_nonce();
+    let xnonce = XNonce::from_slice(&nonce);
+    let nonce_b64 = general_purpose::STANDARD.encode(nonce.clone());
 
+    let cipher = XChaCha20Poly1305::new(Key::from_slice(&key));
+
+    let ciphertext_err = cipher.encrypt(xnonce, plaintext.as_bytes());
+
+    if let Ok(ciphertext) = ciphertext_err {
+        let ciphertext_b64 = general_purpose::STANDARD.encode(ciphertext);
+
+        let perr_one = client.update_record_by_id("ironvault", id as i64, "ciphertext", &serde_json::Value::String(ciphertext_b64)).await;
+        let perr_two = client.update_record_by_id("ironvault", id as i64, "nonce", &serde_json::Value::String(nonce_b64)).await;
+
+        let Ok(_p_one) = perr_one else {
+            return "Error in writing ciphertext to database".to_string();
+        };
+
+        let Ok(_p_two) = perr_two else{
+            return "Error in writing nonce to database".to_string();
+        };
+
+        return "OK".to_string();
+    } else {
+        return "Encryption error".to_string();
+    }
 }
 
 pub fn generate_nonce() -> Vec<u8> {
