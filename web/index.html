@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IronVault</title>
     <link rel="stylesheet" href="style.css">
-    <script src="parser.js" defer></script>
+    <script type="module" src="parser.js" defer></script>
 </head>
 <body>
     <div class="nbar">
@@ -16,12 +16,15 @@
         <div class="loginfeilds-wrapper-div">
             <div class="loginfeilds-div">
                 <h3 class="loginalert" id="login-msg"></h3>
-                <label for="username">Username:</label>
-                <input type="text" name="username" id="username" placeholder="Enter Username">
-                <label for="password">Password:</label>
-                <input type="text" name="password" id="password" placeholder="Enter Password">
+                <label for="username" class="s1">Username:</label>
+                <input type="text" name="username" id="username" placeholder="Enter Username" class="s1">
+                <label for="password" class="s1">Password:</label>
+                <input type="text" name="password" id="password" placeholder="Enter Password" class="s1">
+                <label for="password_hint" hidden="true" class="s2">Password Hint:</label>
+                <input type="text" name="password_hint" id="password_hint" placeholder="Enter Password Hint" hidden="true" class="s2">
             </div>
-            <button class="go" id="go">Go</button>
+            <button class="go" id="go">Login</button>
+            <button class="s1 cr_acc" id="cr_acc">Create Account</button>
         </div>
     </div>
 </body>

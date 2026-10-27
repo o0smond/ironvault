@@ -39,7 +39,7 @@ pub async fn create_new_vault(username: String, password_hint: String) -> String
     let vault = DatabaseTable::new(0, username, "".to_string(), generate_salt(16), "".to_string(), password_hint);
     
     match client.insert_record::<DatabaseTable>("ironvault", &vault).await {
-        Ok(_) => "Created".to_string(),
+        Ok(_) => "".to_string(),
         Err(insert) => format!("{}", insert)
     }
 }
