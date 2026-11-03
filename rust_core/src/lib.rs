@@ -19,25 +19,35 @@ use wasm_bindgen::prelude::*;
 #[wasm_bindgen]
 pub async fn login_check(user: String) -> i32 {
     let client = database::create_database_client();
-    let id_err_op = client.fetch_id_by_user::<i32>("ironvault", &user).await;
-    
-    if let Ok(Some(id)) = id_err_op {
-        return id;
+
+    // Returns the user's id if found, 0 if the user doesn't exist, or -1 if the lookup failed
+    match client.fetch_id_by_user::<i32>("ironvault", &user).await {
+        Ok(Some(id)) => id,
+        Ok(None) => 0,
+        Err(_) => -1
     }
-    return 0;
 }
 
 #[wasm_bindgen]
-pub async fn create_new_vault(username: String, password_hint: String) -> String {
+pub async fn create_new_vault(username: String, password: String, password_hint: String) -> String {
     let client = database::create_database_client();
+    let salt = generate_salt(16);
+
+    let Some(key) = get_key(password, salt.clone()) else {
+        return "Key generation error".to_string();
+    };
 
     /*
-    Here, let id=0 so that our cloudflare worker can auto increment an ID for this entry
-    Additionally, the nonce is left empty due to it not being needed for the moment being; it will
-    be generated and written later upon re-encryption and updating of the database.
+    Here, the vault starts as an encrypted empty string so that there is always real ciphertext to
+    check a password against, even before the user has saved anything.
+    Additionally, let id=0 so that our cloudflare worker can auto increment an ID for this entry
     */
-    let vault = DatabaseTable::new(0, username, "".to_string(), generate_salt(16), "".to_string(), password_hint);
-    
+    let Some((ciphertext, nonce)) = encrypt_to_base64("", &key) else {
+        return "Encryption error".to_string();
+    };
+
+    let vault = DatabaseTable::new(0, username, ciphertext, salt, nonce, password_hint);
+
     match client.insert_record::<DatabaseTable>("ironvault", &vault).await {
         Ok(_) => "".to_string(),
         Err(insert) => format!("{}", insert)
@@ -105,26 +115,28 @@ pub async fn encrypt_and_push(id: i32, plaintext: String, key_array: &[u8]) -> S
     }
 
     let client = database::create_database_client();
+
+    let Some((ciphertext_b64, nonce_b64)) = encrypt_to_base64(&plaintext, key_array) else {
+        return "Encryption error".to_string();
+    };
+
+    let perr_one = client.update_record_by_id("ironvault", id as i64, "ciphertext", &serde_json::Value::String(ciphertext_b64)).await;
+    let perr_two = client.update_record_by_id("ironvault", id as i64, "nonce", &serde_json::Value::String(nonce_b64)).await;
+
+    if perr_one.is_err() { return "Error in writing ciphertext to database".to_string(); }
+    if perr_two.is_err() { return "Error in writing nonce to database".to_string(); }
+
+    "OK".to_string()
+}
+
+fn encrypt_to_base64(plaintext: &str, key: &[u8]) -> Option<(String, String)> {
     let nonce = generate_nonce();
     let xnonce = XNonce::from_slice(&nonce);
-    let nonce_b64 = general_purpose::STANDARD.encode(nonce.clone());
+    let cipher = XChaCha20Poly1305::new(Key::from_slice(key));
 
-    let cipher = XChaCha20Poly1305::new(Key::from_slice(key_array));
+    let ciphertext = cipher.encrypt(xnonce, plaintext.as_bytes()).ok()?;
 
-    match cipher.encrypt(xnonce, plaintext.as_bytes()) {
-        Ok(ciphertext) => {
-            let ciphertext_b64 = general_purpose::STANDARD.encode(ciphertext);
-
-            let perr_one = client.update_record_by_id("ironvault", id as i64, "ciphertext", &serde_json::Value::String(ciphertext_b64)).await;
-            let perr_two = client.update_record_by_id("ironvault", id as i64, "nonce", &serde_json::Value::String(nonce_b64)).await;
-
-            if perr_one.is_err() { return "Error in writing ciphertext to database".to_string(); }
-            if perr_two.is_err() { return "Error in writing nonce to database".to_string(); }
-
-            "OK".to_string()
-        }
-        Err(_) => "Encryption error".to_string()
-    }
+    Some((general_purpose::STANDARD.encode(ciphertext), general_purpose::STANDARD.encode(nonce)))
 }
 
 pub fn generate_nonce() -> Vec<u8> {

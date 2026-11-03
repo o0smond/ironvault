@@ -177,7 +177,9 @@ impl DatabaseClient {
         });
         let resp = match self.send_request(&payload).await {
             Ok(val) => val,
-            Err(_) => return Ok(None), // Handles 404 / user not found responses
+            // The worker answers 404 when the username isn't in the table. Anything else is a real failure.
+            Err(e) if e.to_string().starts_with("HTTP 404") => return Ok(None),
+            Err(e) => return Err(e),
         };
 
         let id = resp.get("id").cloned();
