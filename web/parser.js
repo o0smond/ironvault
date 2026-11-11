@@ -143,3 +143,19 @@ go_button.addEventListener('click', async () => {
     input.addEventListener('input', () => {
     });
 });
+
+//Should return the saved logins as [{ id, title, username, password }], called right after login
+export async function load_entries() {}
+
+//entry is the login being saved, next is the whole list of logins after the change
+export async function save_entry(entry, is_new, next) {}
+
+//ids are the selected logins, next is the whole list of logins without them
+export async function delete_entries(ids, next) {}
+
+export async function change_hint(hint) {}
+
+export async function change_password(current, next) {}
+
+//Called when the vault is locked, should forget vault_id, vault_key and vault_plaintext
+export function lock_vault() {}
