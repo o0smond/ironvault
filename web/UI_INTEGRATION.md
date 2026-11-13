@@ -2,7 +2,9 @@
 
 | File | What it is |
 |---|---|
-| `index.html` | All four views as markup, the Tailwind theme, and the Heroicons sprite |
+| `index.html` | All four views as markup, and the Heroicons sprite |
+| `tailwind.in.css` | The Tailwind theme and component classes. Source for `tailwind.css` |
+| `tailwind.css` | Built CSS the page loads. Don't edit by hand |
 | `ui.js` | View switching, list rendering, selection, and the entry/account forms. Calls parser.js for every change |
 | `parser.js` | Your login code (unchanged), plus six blank vault-action functions at the bottom for you to fill in |
 
@@ -35,81 +37,46 @@ Purely visual additions:
 - The password field is `type="password"` and has an eye button to show it.
 - `#login-msg` turns green for "Login successful" and "Account created…", and stays red for everything else.
 
-**After login:** `ui.js` watches `#login-msg`. When it reads exactly `Login successful`, it calls `load_entries()` and switches to the list. If you ever change that message text, change the check in `ui.js` too.
+**After login:** once the vault decrypts, `get_plaintext` in parser.js fires a `document` event named `unlocked`. `ui.js` listens for it, renders the list and switches to it.
 
 ## Vault actions (bottom of parser.js)
 
-`ui.js` imports these and calls them directly. They're blank: fill them in. Each one returns an **error message** for the UI to show, or **nothing** for success. The UI only updates its list after a call succeeds, so a failed save never looks like it worked.
+parser.js owns all vault state: `vault_id`, `vault_key` and `entries` (the decrypted list, `[{ id, title, username, password }]`). `ui.js` never keeps its own copy. It calls these, then calls `render()`, which reads `get_entries()` again.
 
-| Function | Called when | Arguments |
+Each action returns an **error message** for the UI to show, or **nothing** for success. `entries` only changes after `encrypt_and_push` returns `"OK"`, so a failed save never looks like it worked.
+
+| Function | Called when | Does |
 |---|---|---|
-| `load_entries()` | Right after login | Should **return** the list `[{ id, title, username, password }]` |
-| `save_entry(entry, is_new, next)` | Save on the entry page (edit or add) | `entry` = the login saved, `is_new` = true when added |
-| `delete_entries(ids, next)` | Trash button, after the confirm dialog | `ids` = the selected logins' ids |
-| `change_hint(hint)` | Account › Save hint | UI already rejects an empty hint |
-| `change_password(current, next)` | Account › Change password | UI already checks both are filled and the confirm field matches |
-| `lock_vault()` | Lock vault (menu or account page) | The UI clears itself and returns to login afterwards |
+| `get_entries()` | Every render | Returns the list |
+| `save_entry(entry)` | Save on the entry page (edit or add) | Replaces the entry with the same `id`, or adds it, then encrypts and pushes |
+| `delete_entries(ids)` | Trash button, after the confirm dialog | Removes those ids, then encrypts and pushes |
+| `change_hint(hint)` | Account › Save hint | Pushes the vault again with the new hint. UI already rejects an empty hint |
+| `change_password(current, next)` | Account › Change password | Stub. UI already checks both are filled and the confirm field matches |
+| `lock_vault()` | Lock vault (menu or account page) | Wipes `vault_id`, `vault_key`, `entries` and `password_hint`. The UI then returns to login |
 
-`next` is the **whole** list of logins after the change. The vault is encrypted as one blob, so you never have to merge anything: serialize `next`, encrypt it, push it.
+The plaintext is `JSON.stringify(entries)`. Accounts are created with an encrypted empty string, so `""` means "no logins". The vault is one encrypted blob, so every change re-encrypts the whole list.
 
-New logins get `id = crypto.randomUUID()`. Titles are trimmed. Usernames and passwords are saved exactly as typed, since spaces can be part of a password.
+New logins get `id = crypto.randomUUID()` in ui.js. Titles are trimmed. Usernames and passwords are saved exactly as typed, since spaces can be part of a password.
 
-## Filling them in with the current JS and Rust
+The hint is not encrypted. It stays in its own `password_hint` column, so it can be shown before login. parser.js keeps it in `password_hint`, and `encrypt_and_push(id, plaintext, key, hint)` writes it along with the ciphertext and nonce.
 
-The stubs live in parser.js, so they can use `vault_id`, `vault_key` and `vault_plaintext` directly.
+### Changing the master password (not built yet)
 
-### Plaintext format, and `load_entries`
+JS runs the steps. Rust only derives the key, encrypts and pushes:
 
-Accounts are created with an encrypted empty string, so plaintext `""` means "no logins". Store the list as JSON:
-
-```js
-export async function load_entries() {
-    return vault_plaintext ? JSON.parse(vault_plaintext) : [];
-}
-```
-
-### Save and delete use the existing `encrypt_and_push`
-
-`encrypt_and_push(id, plaintext, key)` already exists (add it to the import at the top of parser.js). It returns `"OK"` on success:
-
-```js
-async function push_vault(next) {
-    const plaintext = JSON.stringify(next);
-    const res = await encrypt_and_push(vault_id, plaintext, vault_key);
-    if (res !== "OK") return res;
-    vault_plaintext = plaintext;
-}
-
-export async function save_entry(entry, is_new, next) { return push_vault(next); }
-export async function delete_entries(ids, next) { return push_vault(next); }
-```
-
-### Lock must wipe the key
-
-```js
-export function lock_vault() { vault_key = null; vault_plaintext = ""; vault_id = 0; }
-```
-
-### Account actions need new Rust functions
-
-These don't exist yet. Suggested shapes, following the existing style of returning `"OK"` or an error `String`:
-
-- **`update_password_hint(id: i32, hint: String) -> String`**: one `client.update_record_by_id("ironvault", id, "password_hint", …)`.
-  ```js
-  export async function change_hint(hint) {
-      const r = await update_password_hint(vault_id, hint);
-      if (r !== "OK") return r;
-  }
-  ```
-- **`change_master_password(id, plaintext, new_password) -> String`**: generate a new salt, derive the new key, re-encrypt `plaintext`, and write salt, ciphertext and nonce. In `change_password`, first check `current` the same way `get_plaintext` does (`get_unwrapped_key(current, kdf_salt)` + `decrypt`). On success, replace `vault_key` with the new key, which the Rust function should return or let JS derive again.
+1. Check `current`: `get_unwrapped_key(current, kdf_salt)` must match `vault_key` byte for byte. parser.js will need to keep `kdf_salt` from `fetch_db_info`.
+2. Make a fresh salt in JS (`crypto.getRandomValues`, then base64).
+3. `new_key = get_unwrapped_key(next, new_salt)`.
+4. Encrypt and push `entries` with `new_key`, **and write the new salt in the same request**.
+5. Set `vault_key = new_key`.
 
 ### Backend risk worth knowing (not changed)
 
-`encrypt_and_push` writes `ciphertext` and `nonce` as **two separate updates**. If the first succeeds and the second fails, the stored ciphertext no longer matches its nonce and the vault can't be decrypted. Writing both columns in one `UPDATE` (and salt too, for password changes) would fix it.
+`encrypt_and_push` writes `ciphertext`, `nonce` and `password_hint` as **three separate updates**. If the ciphertext saves but the nonce fails, they no longer match and the vault can't be decrypted. A failed hint write only leaves the old hint. For password changes this gets worse: new ciphertext with the old salt can't be opened by any password. Writing every column in one request (`update_record_by_struct` in database.rs, if the worker supports its `update` action) would fix it.
 
 ## Styling notes
 
-- **Tailwind v4** runs from the in-browser build (`@tailwindcss/browser@4.1.11` on jsDelivr), with theme tokens in the `<style type="text/tailwindcss">` block. That is fine for development. For a hosted password manager, avoid running a third-party script on the page: build with the Tailwind CLI (`npx @tailwindcss/cli -i in.css -o tailwind.css`, moving the `@theme`/`@layer` block into `in.css`), link the output CSS, and delete the CDN script.
+- **Tailwind v4** is built ahead of time, so no third-party script runs on the page. Theme tokens and component classes live in `tailwind.in.css`. Classes are only generated for what the CLI finds in `web/`, so **after adding or changing classes, run `npm run build:css` from the repo root** (first time: `npm install`). The output `tailwind.css` is committed, so serving `web/` needs no build.
 - **Icons** are Heroicons v2.2.0 (24px outline), inlined once as `<symbol>`s at the top of `<body>`. Use `<svg class="size-5" aria-hidden="true"><use href="#i-trash"/></svg>`. To add one, copy its path from heroicons.com into a new `<symbol id="i-…">`.
 - **Palette** (in `@theme`): `paper` #F8EAD6 (page), `plate` #FFF9F0 (panels), `forge` #EF7D16 (header), `ember` #A9530B (accents and focus), `iron` #2A2420 (text), `slag` #6E6257 (muted text), `seam` #E4CFB0 (borders), `patina` #2E7552 (primary buttons), `rust` #B3362B (errors and delete).
 - **Type**: Bitcount Prop Single (pixel) for the wordmark, entry titles, username heading and row initials; Archivo for everything else.

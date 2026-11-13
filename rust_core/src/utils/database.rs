@@ -33,6 +33,21 @@ impl DatabaseTable {
     }
 }
 
+//id is type String here because we will be parsing/encoding to JSON
+#[derive(Serialize, Deserialize)]
+pub struct Entry {
+    pub id: String,
+    pub title: String,
+    pub username: String,
+    pub password: String
+}
+
+impl Entry {
+    pub fn new(id: String, title: String, username: String, password: String) -> Self {
+        Entry { id, title, username, password }
+    }
+}
+
 #[allow(unused)]
 pub fn create_database_client() -> DatabaseClient {
     DatabaseClient::new(WORKER_URL.to_string())

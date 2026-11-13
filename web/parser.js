@@ -1,4 +1,4 @@
-import init, { login_check, create_new_vault, fetch_db_info, get_unwrapped_key, decrypt } from "./pkg/ironvault.js";
+import init, { login_check, create_new_vault, fetch_db_info, get_unwrapped_key, decrypt, encrypt_and_push } from "./pkg/ironvault.js";
 const wasmReady = init();
 
 const go_button = document.getElementById("go");
@@ -9,11 +9,12 @@ const warning = document.getElementById("login-msg");
 const pass_hint_box = document.getElementById("password_hint");
 const s1 = document.querySelectorAll('.s1');
 const s2 = document.querySelectorAll('.s2');
-let username = "";
 let warningTimer;
 let vault_id = 0;
+let username = "";
+let password_hint = "";
 let vault_key = null;
-let vault_plaintext = "";
+let entries = []; //decrypted vault as [{ id, title, username, password }]
 
 function showWarning(message) {
     clearTimeout(warningTimer);
@@ -65,11 +66,21 @@ function get_plaintext(user_info, pass) {
         return
     }
 
+    //As new accounts are created with an encrypted empty string, "" means no logins yet
+    let parsed = [];
+    try {
+        parsed = plaintext ? JSON.parse(plaintext) : [];
+    } catch {
+        showWarning("This account's vault data is damaged");
+        return
+    }
+
     //Only kept after a successful decrypt, so a wrong password's key is never stored
     vault_id = id;
     vault_key = key;
-    vault_plaintext = plaintext;
+    entries = parsed;
     showWarning("Login successful");
+    document.dispatchEvent(new Event("unlocked"));
 }
 
 cr_acc_btn.addEventListener('click', async () => {
@@ -112,6 +123,7 @@ go_button.addEventListener('click', async () => {
         } else if (user_exits > 0) {
             let user_info = await fetch_db_info(user_exits);
             if (user_info.length > 1) {
+                password_hint = user_info[5];
                 get_plaintext(user_info, pass);
             } else {
                 showWarning(user_info[0]);
@@ -144,18 +156,58 @@ go_button.addEventListener('click', async () => {
     });
 });
 
-//Should return the saved logins as [{ id, title, username, password }], called right after login
-export async function load_entries() {}
+let pushing = false;
 
-//entry is the login being saved, next is the whole list of logins after the change
-export async function save_entry(entry, is_new, next) {}
+//Pushes the whole vault and the hint. Only keeps them once the DB write worked, so a failed save never shows as saved
+async function push_vault(next, hint = password_hint) {
+    //As two pushes at once would both start from the same old list, and one would be lost
+    if (pushing) return "Still saving, try again";
+    pushing = true;
+    try {
+        const r = await encrypt_and_push(vault_id, JSON.stringify(next), vault_key, hint);
+        if (r !== "OK") return r;
+        //As locking during the save already wiped the vault, so don't put the entries back
+        if (!vault_key) return "Vault was locked";
+        entries = next;
+        password_hint = hint;
+    } finally {
+        pushing = false;
+    }
+}
 
-//ids are the selected logins, next is the whole list of logins without them
-export async function delete_entries(ids, next) {}
+export function get_entries() {
+    return entries;
+}
 
-export async function change_hint(hint) {}
+//Adds the entry if its id is new, otherwise replaces the old one with the same id
+export async function save_entry(entry) {
+    const new_entries = [...entries];
+    const index = new_entries.findIndex(existing_entry => existing_entry.id === entry.id);
+    if (index === -1) {
+        new_entries.push(entry);
+    } else {
+        new_entries[index] = entry;
+    }
+    return push_vault(new_entries);
+}
 
-export async function change_password(current, next) {}
+export async function delete_entries(ids) {
+    return push_vault(entries.filter(e => !ids.includes(e.id)));
+}
 
-//Called when the vault is locked, should forget vault_id, vault_key and vault_plaintext
-export function lock_vault() {}
+//Pushed now rather than at lock, as closing the tab never runs lock_vault
+export async function change_hint(hint) {
+    return push_vault(entries, hint);
+}
+
+//As returning nothing would show "Master password changed" in the UI
+export async function change_password(current, next) {
+    return "Changing the master password isn't built yet";
+}
+
+export function lock_vault() {
+    vault_id = 0;
+    vault_key = null;
+    entries = [];
+    password_hint = "";
+}

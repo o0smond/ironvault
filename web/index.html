@@ -7,37 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Bitcount+Prop+Single:wght@100..900&display=swap" rel="stylesheet">
-    <!-- shortcut: Tailwind's in-browser build compiles classes at runtime; swap for the Tailwind CLI output before hosting publicly (see UI_INTEGRATION.md) -->
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.1.11"></script>
-    <style type="text/tailwindcss">
-        @theme {
-            --color-paper: #F8EAD6;
-            --color-plate: #FFF9F0;
-            --color-forge: #EF7D16;
-            --color-ember: #A9530B;
-            --color-iron: #2A2420;
-            --color-slag: #6E6257;
-            --color-seam: #E4CFB0;
-            --color-patina: #2E7552;
-            --color-rust: #B3362B;
-            --font-sans: "Archivo", ui-sans-serif, system-ui, sans-serif;
-            --font-pixel: "Bitcount Prop Single", ui-monospace, monospace;
-        }
-        @layer base {
-            :focus-visible { outline: 2px solid var(--color-ember); outline-offset: 2px; }
-            [data-view]:not([hidden]) { animation: view-in 180ms ease-out; }
-            @keyframes view-in { from { opacity: 0; transform: translateY(4px); } }
-            @media (prefers-reduced-motion: reduce) { [data-view]:not([hidden]) { animation: none; } }
-        }
-        @layer components {
-            .panel { @apply rounded-xl border border-seam bg-plate shadow-[0_1px_0_var(--color-seam)]; }
-            .label { @apply block text-sm font-medium text-slag; }
-            .field { @apply w-full rounded-md border border-seam bg-white px-3 py-2.5 text-iron placeholder:text-slag/60 focus:not-read-only:border-ember focus:outline-none read-only:border-transparent read-only:bg-paper/50; }
-            .btn-primary { @apply rounded-md bg-patina px-4 py-2.5 font-semibold text-white hover:bg-patina/90; }
-            .btn-quiet { @apply rounded-md px-4 py-2.5 font-medium text-iron hover:bg-paper; }
-            .btn-icon { @apply grid size-10 shrink-0 place-items-center rounded-md text-iron hover:bg-paper disabled:pointer-events-none disabled:opacity-35; }
-        }
-    </style>
+    <!-- Built from tailwind.in.css with `npm run build:css` at the repo root; rebuild after changing classes -->
+    <link rel="stylesheet" href="tailwind.css">
     <script type="module" src="parser.js" defer></script>
     <script type="module" src="ui.js"></script>
 </head>

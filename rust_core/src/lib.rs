@@ -7,6 +7,7 @@ Program Details: Ironvault Rust WASM backend functions
 mod utils;
 use crate::utils::database;
 use crate::utils::database::DatabaseTable;
+use crate::utils::database::Entry;
 use rand::Rng;
 use rand::RngCore;
 use base64::{engine::general_purpose, Engine as _};
@@ -109,7 +110,7 @@ pub fn decrypt(nonce: String, key_array: &[u8], ciphertext: String) -> String {
 }
 
 #[wasm_bindgen]
-pub async fn encrypt_and_push(id: i32, plaintext: String, key_array: &[u8]) -> String {
+pub async fn encrypt_and_push(id: i32, plaintext: String, key_array: &[u8], password_hint: String) -> String {
     if key_array.len() != 32 {
         return "invalid key length".to_string();
     }
@@ -120,13 +121,19 @@ pub async fn encrypt_and_push(id: i32, plaintext: String, key_array: &[u8]) -> S
         return "Encryption error".to_string();
     };
 
-    let perr_one = client.update_record_by_id("ironvault", id as i64, "ciphertext", &serde_json::Value::String(ciphertext_b64)).await;
-    let perr_two = client.update_record_by_id("ironvault", id as i64, "nonce", &serde_json::Value::String(nonce_b64)).await;
+    //One UPDATE for every column, so the ciphertext can never be saved without its nonce
+    let record = serde_json::json!({
+        "id": id,
+        "ciphertext": ciphertext_b64,
+        "nonce": nonce_b64,
+        "password_hint": password_hint
+    });
 
-    if perr_one.is_err() { return "Error in writing ciphertext to database".to_string(); }
-    if perr_two.is_err() { return "Error in writing nonce to database".to_string(); }
-
-    "OK".to_string()
+    match client.update_record_by_struct("ironvault", &record).await {
+        Ok(0) => "Vault row not found".to_string(),
+        Ok(_) => "OK".to_string(),
+        Err(e) => format!("Error in writing vault to database: {}", e)
+    }
 }
 
 fn encrypt_to_base64(plaintext: &str, key: &[u8]) -> Option<(String, String)> {

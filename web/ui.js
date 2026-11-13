@@ -1,6 +1,6 @@
 // UI layer only: switches views, renders the entry list, tracks selection, and calls the
 // vault actions in parser.js for every change. See UI_INTEGRATION.md.
-import { load_entries, save_entry, delete_entries, change_hint, change_password, lock_vault } from "./parser.js";
+import { get_entries, save_entry, delete_entries, change_hint, change_password, lock_vault } from "./parser.js";
 
 const $ = (sel) => document.querySelector(sel);
 const views = document.querySelectorAll('[data-view]');
@@ -14,7 +14,6 @@ const entryReveal = $('[data-reveal="f-password"]');
 const loginReveal = $('[data-reveal="password"]');
 
 const selected = new Set();
-let entries = [];
 let current = null; // entry open in the entry view, null while adding a new one
 let toastTimer;
 
@@ -28,15 +27,8 @@ function setUser(name) {
     document.querySelectorAll('[data-username]').forEach(el => { el.textContent = name; });
 }
 
-// entries: [{ id, title, username, password }]
-function setEntries(next) {
-    entries = [...next];
-    for (const id of selected) if (!entries.some(e => e.id === id)) selected.delete(id);
-    render();
-}
-
 const getSelectedIds = () => [...selected];
-const getSelectedEntries = () => entries.filter(e => selected.has(e.id));
+const getSelectedEntries = () => get_entries().filter(e => selected.has(e.id));
 
 function notify(message) {
     toast.textContent = message;
@@ -45,7 +37,10 @@ function notify(message) {
     toastTimer = setTimeout(() => { toast.hidden = true; }, 4_000);
 }
 
+// get_entries() is [{ id, title, username, password }], owned by parser.js
 function render() {
+    const entries = get_entries();
+    for (const id of selected) if (!entries.some(e => e.id === id)) selected.delete(id);
     list.replaceChildren(...entries.map(entry => {
         const row = rowTpl.content.firstElementChild.cloneNode(true);
         const box = row.querySelector('input');
@@ -101,29 +96,27 @@ async function saveEntry() {
     if (!draft.title) return notify('Give this login a website or title');
 
     const isNew = !current;
-    const next = isNew ? [...entries, draft] : entries.map(e => (e.id === draft.id ? draft : e));
-    const err = await save_entry(draft, isNew, next);
+    const err = await save_entry(draft);
     if (err) return notify(err);
-    setEntries(next);
+    render();
     openEntry(draft);
     notify(isNew ? 'Login saved' : 'Changes saved');
 }
 
 async function deleteSelected() {
     const ids = getSelectedIds();
-    const next = entries.filter(e => !selected.has(e.id));
-    const err = await delete_entries(ids, next);
+    const err = await delete_entries(ids);
     if (err) return notify(err);
-    setEntries(next);
+    render();
     notify(ids.length === 1 ? 'Login deleted' : `${ids.length} logins deleted`);
 }
 
 async function lock() {
     await lock_vault();
     selected.clear();
-    setEntries([]);
+    render();
     setUser('');
-    document.querySelectorAll('#password, [data-view="account"] input').forEach(i => { i.value = ''; });
+    document.querySelectorAll('#password, #entry-form input, [data-view="account"] input').forEach(i => { i.value = ''; });
     setPasswordVisible(loginReveal, false);
     showView('login');
 }
@@ -133,20 +126,20 @@ async function lock() {
 // Enter submits via #go's click, which is what parser.js listens for.
 $('#login-form').addEventListener('submit', e => e.preventDefault());
 
-// shortcut: parser.js has no login-success hook, so watch the message it writes; a direct call
-// from get_plaintext would be sturdier if that message text ever changes.
+// Colours the message parser.js writes: green for success, red for everything else
 const loginMsg = $('#login-msg');
-new MutationObserver(async () => {
-    const text = loginMsg.textContent;
-    loginMsg.dataset.tone = /successful|created/i.test(text) ? 'ok' : 'error';
-    if (text === 'Login successful') {
-        setUser($('#username').value);
-        $('#password').value = '';
-        setPasswordVisible(loginReveal, false);
-        setEntries((await load_entries()) ?? []);
-        showView('list');
-    }
+new MutationObserver(() => {
+    loginMsg.dataset.tone = /successful|created/i.test(loginMsg.textContent) ? 'ok' : 'error';
 }).observe(loginMsg, { childList: true, characterData: true, subtree: true });
+
+// parser.js fires this once the vault is decrypted and its entries are loaded
+document.addEventListener('unlocked', () => {
+    setUser($('#username').value);
+    $('#password').value = '';
+    setPasswordVisible(loginReveal, false);
+    render();
+    showView('list');
+});
 
 document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => showView(b.dataset.go)));
 document.querySelectorAll('[data-action="add"]').forEach(b => b.addEventListener('click', () => openEntry(null, true)));
