@@ -9,12 +9,15 @@ const warning = document.getElementById("login-msg");
 const pass_hint_box = document.getElementById("password_hint");
 const s1 = document.querySelectorAll('.s1');
 const s2 = document.querySelectorAll('.s2');
+const show_hint = document.getElementById("show_hint");
+const hint_box = document.getElementById("hint_box");
 let warningTimer;
-let vault_id = 0;
+let failed_attempts = 0;
+let hint_user = "";
 let username = "";
-let password_hint = "";
 let vault_key = null;
 let entries = []; //decrypted vault as [{ id, title, username, password }]
+let vault_user_info; //user_info is [id, username, ciphertext, kdf_salt, nonce, password_hint]
 
 function showWarning(message) {
     clearTimeout(warningTimer);
@@ -26,23 +29,21 @@ function showWarning(message) {
 }
 
 //user_info is [id, username, ciphertext, kdf_salt, nonce, password_hint]
-function get_plaintext(user_info, pass) {
-    const id = Number(user_info[0]);
+//Returns an error string, or { key, entries } on success. Changes no state, so a failed check never touches the open vault
+function verify_password(user_info, pass) {
     const ciphertext = user_info[2];
     const kdf_salt = user_info[3];
     const nonce = user_info[4];
 
     //As all accounts get encrypted data on creation, an empty ciphertext can't verify a password
     if (ciphertext === "") {
-        showWarning("This account has no vault data to check a password against");
-        return
+        return "This account has no vault data to check a password against";
     }
 
     //As get_unwrapped_key returns a key of all zeros on fail
     const key = get_unwrapped_key(pass, kdf_salt);
     if (key.every(byte => byte === 0)) {
-        showWarning("Could not generate key from this account's salt");
-        return
+        return "Could not generate key from this account's salt";
     }
 
     //As decrypt throws instead of returning a message if the nonce is the wrong length
@@ -50,20 +51,17 @@ function get_plaintext(user_info, pass) {
     try {
         plaintext = decrypt(nonce, key, ciphertext);
     } catch {
-        showWarning("This account's vault data is damaged");
-        return
+        return "This account's vault data is damaged";
     }
 
     if (plaintext === "decryption error") {
-        showWarning("Incorrect password");
-        return
+        return "Incorrect password";
     }
 
     //All of the other messages decrypt can return in place of the plaintext
     if (plaintext === "invalid key length" || plaintext === "nonce parsing error" ||
         plaintext === "ciphertext parsing error" || plaintext === "plaintext parsing error") {
-        showWarning(plaintext);
-        return
+        return plaintext;
     }
 
     //As new accounts are created with an encrypted empty string, "" means no logins yet
@@ -71,14 +69,40 @@ function get_plaintext(user_info, pass) {
     try {
         parsed = plaintext ? JSON.parse(plaintext) : [];
     } catch {
-        showWarning("This account's vault data is damaged");
-        return
+        return "This account's vault data is damaged";
     }
 
+    return { key, entries: parsed };
+}
+
+//Hides the hint and restarts the failed attempt count for the current username
+function reset_hint() {
+    show_hint.hidden = true;
+    hint_box.hidden = true;
+    failed_attempts = 0;
+    hint_user = username;
+}
+
+show_hint.addEventListener('click', () => {
+    show_hint.hidden = true;
+    hint_box.hidden = false;
+});
+
+function get_plaintext(user_info, pass) {
+    const result = verify_password(user_info, pass);
+    if (typeof result === "string") {
+        if (result === "Incorrect password" && ++failed_attempts >= 2 && hint_box.hidden) {
+            //textContent, so the hint can't inject HTML
+            hint_box.textContent = `Password hint: "${user_info[5]}"`;
+            show_hint.hidden = false;
+        }
+        return showWarning(result);
+    }
+    reset_hint();
     //Only kept after a successful decrypt, so a wrong password's key is never stored
-    vault_id = id;
-    vault_key = key;
-    entries = parsed;
+    vault_key = result.key;
+    entries = result.entries;
+    vault_user_info = user_info;
     showWarning("Login successful");
     document.dispatchEvent(new Event("unlocked"));
 }
@@ -99,6 +123,7 @@ cr_acc_btn.addEventListener('click', async () => {
     } else if (user_exits > 0) {
         showWarning("User already exists");
     } else {
+        reset_hint();
         s1.forEach(el => {el.hidden = true});
         s2.forEach(el => {el.hidden = false});
         go_button.textContent = "Create Account"
@@ -110,6 +135,8 @@ go_button.addEventListener('click', async () => {
     if (go_button.textContent === "Login") {
         username = user_box.value;
         const pass = pass_box.value;
+        //So one user's failed attempts never reveal another user's hint
+        if (username !== hint_user) reset_hint();
 
         if (username === "" || pass === "") {
             showWarning("Missing Username or Password");
@@ -123,7 +150,6 @@ go_button.addEventListener('click', async () => {
         } else if (user_exits > 0) {
             let user_info = await fetch_db_info(user_exits);
             if (user_info.length > 1) {
-                password_hint = user_info[5];
                 get_plaintext(user_info, pass);
             } else {
                 showWarning(user_info[0]);
@@ -151,25 +177,21 @@ go_button.addEventListener('click', async () => {
     }
 });
 
-[user_box, pass_box].forEach(input => {
-    input.addEventListener('input', () => {
-    });
-});
-
 let pushing = false;
 
 //Pushes the whole vault and the hint. Only keeps them once the DB write worked, so a failed save never shows as saved
-async function push_vault(next, hint = password_hint) {
+async function push_vault(next, hint = vault_user_info[5], key = vault_key) {
     //As two pushes at once would both start from the same old list, and one would be lost
     if (pushing) return "Still saving, try again";
     pushing = true;
     try {
-        const r = await encrypt_and_push(vault_id, JSON.stringify(next), vault_key, hint);
+        const r = await encrypt_and_push(Number(vault_user_info[0]), JSON.stringify(next), key, hint);
         if (r !== "OK") return r;
         //As locking during the save already wiped the vault, so don't put the entries back
         if (!vault_key) return "Vault was locked";
         entries = next;
-        password_hint = hint;
+        vault_user_info[5] = hint;
+        vault_key = key;
     } finally {
         pushing = false;
     }
@@ -200,14 +222,24 @@ export async function change_hint(hint) {
     return push_vault(entries, hint);
 }
 
-//As returning nothing would show "Master password changed" in the UI
+//Returns "" on success or an error string. Salt is reused on purpose: it's already unique per account, so only ciphertext and nonce change
 export async function change_password(current, next) {
-    return "Changing the master password isn't built yet";
+    //Gening a new key with the same salt with their old pass and comparing byte by byte.
+    const check = get_unwrapped_key(current, vault_user_info[3]);
+    if (!check.every((byte, i) => byte === vault_key[i])) return "Incorrect current password";
+
+    //Updating key
+    const new_key = get_unwrapped_key(next, vault_user_info[3]);
+    if (new_key.every(byte => byte === 0)) return "Could not generate key from this account's salt";
+    
+    //push_vault updates global key w new_key here on success so no need to here
+    const err = await push_vault(entries, undefined, new_key);
+    if (err === undefined || err === "Vault was locked") return "";
+    return err;
 }
 
 export function lock_vault() {
-    vault_id = 0;
     vault_key = null;
     entries = [];
-    password_hint = "";
+    vault_user_info = null;
 }

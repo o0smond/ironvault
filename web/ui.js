@@ -193,5 +193,6 @@ $('#password-form').addEventListener('submit', async e => {
     const err = await change_password(current, next);
     if (err) return notify(err);
     e.target.reset();
+    e.target.querySelectorAll('[data-reveal]').forEach(b => setPasswordVisible(b, false));
     notify('Master password changed');
 });
