@@ -12,7 +12,7 @@
 <p align="center">A Rust-based password manager in the browser. All encryption is handled client-side with WebAssembly, so only ciphertext is ever stored.</p>
 
 <p align="center">
-  <a href="https://ironvault.oosmond.site"><img src="https://img.shields.io/badge/demo-live-brightgreen" alt="Live Demo"></a>
+  <a href="https://ironvault.oosmond.dev"><img src="https://img.shields.io/badge/demo-live-brightgreen" alt="Live Demo"></a>
   <img src="https://img.shields.io/badge/Rust-WASM-orange?logo=rust" alt="Rust">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
 </p>
@@ -113,7 +113,7 @@ decryption fails. I chose it over AES because WebAssembly has no access to hardw
 - Trusting that the server will deliver unmodified JS/WASM
 
 ## Getting Started
-Use it on my website at https://ironvault.oosmond.site, or, if you'd prefer, host it locally with your own database.
+Use it on my website at https://ironvault.oosmond.dev, or, if you'd prefer, host it locally with your own database.
 
 ### Prerequisites
 Rust (stable), the wasm32-unknown-unknown target, wasm-pack, Node (only for Tailwind), a static file server.
