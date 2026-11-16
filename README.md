@@ -1,10 +1,21 @@
-# IronVault
+<div align="center">
+<pre>
+██╗██████╗  ██████╗ ███╗   ██╗██╗   ██╗ █████╗ ██╗   ██╗██╗     ████████╗
+██║██╔══██╗██╔═══██╗████╗  ██║██║   ██║██╔══██╗██║   ██║██║     ╚══██╔══╝
+██║██████╔╝██║   ██║██╔██╗ ██║██║   ██║███████║██║   ██║██║        ██║&nbsp;&nbsp;&nbsp;
+██║██╔══██╗██║   ██║██║╚██╗██║╚██╗ ██╔╝██╔══██║██║   ██║██║        ██║&nbsp;&nbsp;&nbsp;
+██║██║  ██║╚██████╔╝██║ ╚████║ ╚████╔╝ ██║  ██║╚██████╔╝███████╗   ██║&nbsp;&nbsp;&nbsp;
+╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝  ╚═══╝  ╚═╝  ╚═╝ ╚═════╝ ╚══════╝   ╚═╝&nbsp;&nbsp;&nbsp;
+</pre>
+</div>
 
-A Rust based password manager in the browser. All encryption is handled clientside with WebAssembly, so only ciphertext is ever stored.
+<p align="center">A Rust-based password manager in the browser. All encryption is handled client-side with WebAssembly, so only ciphertext is ever stored.</p>
 
-[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://ironvault.oosmond.site)
-![Rust](https://img.shields.io/badge/Rust-WASM-orange?logo=rust)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+<p align="center">
+  <a href="https://ironvault.oosmond.site"><img src="https://img.shields.io/badge/demo-live-brightgreen" alt="Live Demo"></a>
+  <img src="https://img.shields.io/badge/Rust-WASM-orange?logo=rust" alt="Rust">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
+</p>
 
 ---
 
@@ -75,23 +86,20 @@ for storing data on each user, with each row containing the user's ID, username,
 vault as base64 ciphertext, their salt, nonce, and finally their password hint. Note that username 
 and password hint are stored unencrypted.
 
-## Security Model
-
-<!--
-Keep the "why" style from the old README, but write it about THIS design. Subsections:
--->
-
+## Security Architecture
 ### What the server sees
-<!-- Username, ciphertext, KDF salt, nonce, password hint. Never the master password or the key. -->
+Username, KDF salt, nonce, password hint, and encrypted ciphertext. Never a password or the key.
 
 ### Key derivation: Argon2id
-<!-- Why Argon2id, plus your actual parameters (lib.rs: 64 MiB memory, 3 iterations, 1 lane) and why you chose them. -->
+Used in the Rust core (lib.rs) for key derivation from the inputted password and stored salt from the database.
+Argon2id was chosen as OWASP lists it as their top choice for a KDF (https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html),
+and it integrates easily with Rust. Ironvault configures Argon to use 64MiB of memory and 3 passes every guess, which
+makes it extremely hard for GPUs to crack, and sits well above OWASP's recomended settings.
 
 ### Encryption: XChaCha20-Poly1305
-<!--
-Why ChaCha over AES in a browser (constant-time in software, no AES-NI from WASM).
-Why the X variant (192-bit random nonces are safe to generate at random). What the Poly1305 tag protects against.
--->
+The vault is encrypted with XChaCha20 and authenticated with a Poly1305 tag, so any tampering with the stored ciphertext is detected and 
+decryption fails. I chose it over AES because WebAssembly has no access to hardware AES instructions, and ChaCha20 is faster for this case 
+(in a browser sandbox). The extended 24-byte nonce makes random nonces safe.
 
 ### Threat model & known limitations
 <!--
@@ -102,11 +110,17 @@ Most student projects skip this. Writing it honestly makes you look senior. Be u
 - Trusting the server to deliver unmodified JS/WASM (true of every web-based password manager).
 - What you would do next to fix each one (see Roadmap).
 -->
+- The worker has open CORS and no per-user auth, so anyone can use the database API if they can
+  figure out the calls.
+- Password hints are plaintext
+- Trusting that the server will deliver unmodified JS/WASM
+- See Roadmap for fixes/next steps
 
 ## Getting Started
+On my website at https://ironvault.oosmond.site. Or, if you'd prefer to host locally with your own database
 
 ### Prerequisites
-<!-- Rust stable (version), the wasm32-unknown-unknown target, wasm-pack, Node (only for Tailwind), a static file server. -->
+Rust stable (version), the wasm32-unknown-unknown target, wasm-pack, Node (only for Tailwind), a static file server.
 
 ### Build & run
 ```bash
@@ -116,10 +130,24 @@ npm install
 npm run build:css
 helpers/build_wasm.sh
 ```
-<!-- Then: how to serve /web locally (e.g. `python -m http.server -d web`), and which URL to open. -->
+Then, serve locally or host on cloudflare or however you prefer,
+```bash
+python -m http.server -d web
+```
 
-### Deploying the worker (optional)
+### Deploying the worker & Turso Setup (Only for personal setup)
 <!-- wrangler steps, and the env vars it needs: DB_URL and DB_TOKEN (your Turso database URL and auth token), set with `wrangler secret put`. Don't put the values here. -->
+Head to https://app.turso.tech/login or your prefered database serivce. Create a new table named 'ironvault', and rows as 'id',
+'username', 'ciphertext', 'kdf_salt', 'nonce', and 'password_hint'.
+
+<img width="1205" height="39" alt="image" src="https://github.com/user-attachments/assets/912a3b31-87d1-456a-b235-967395d03c4a" />
+
+Next, go to cloudflare.com and click 'Dashboard'. After logging in, create a new worker, and paste the worker JS code
+under /worker/worker.js. Then, navigate to settings and add two ENV variables, 'DB_TOKEN' and 'DB_URL'. The vaules for
+these are the provided by Turso when you generate a new key; ensure to switch the libsql:// to https:// in the URL Turso gives.
+
+Finally, navigate back to /rust_core/lib.rs and replace the current URL with your new Turso one. Re-compile the Rust core with the
+build_wasm.sh helper script, and if all goes well, you should have IronVault running on your own custom database!
 
 ## Project Structure
 
