@@ -113,7 +113,7 @@ decryption fails. I chose it over AES because WebAssembly has no access to hardw
 - Trusting that the server will deliver unmodified JS/WASM
 
 ## Getting Started
-Use it on my website at https://ironvault.oosmond.dev, or, if you'd prefer, host it locally with your own database.
+Use it on my website at https://ironvault.oosmond.dev, or if you'd prefer, host it locally with your own database.
 
 ### Prerequisites
 Rust (stable), the wasm32-unknown-unknown target, wasm-pack, Node (only for Tailwind), a static file server.
